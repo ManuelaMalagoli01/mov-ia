@@ -286,7 +286,7 @@ textarea{resize:vertical;min-height:100px;line-height:1.6;}
       <div class="screen active" id="screen-diagnostico">
         <div id="api-warn-diag" class="alert alert-warn" style="display:none;">
           <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-          Configure sua chave da API Anthropic em <strong>Configurações</strong> para ativar a IA.
+          Informe o código de acesso MOV em <strong>Configurações</strong> para ativar a IA.
         </div>
 
         <div class="tipo-tabs">
@@ -649,10 +649,10 @@ textarea{resize:vertical;min-height:100px;line-height:1.6;}
       <!-- CONFIG -->
       <div class="screen" id="screen-config">
         <div class="card" style="margin-bottom:16px;">
-          <div class="card-title">🔑 Chave da API Anthropic</div>
-          <p class="card-sub" style="margin-top:4px;margin-bottom:12px;">Necessária para ativar a IA de diagnóstico. Obtenha em <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent);">console.anthropic.com</a></p>
+          <div class="card-title">🔑 Código de acesso MOV</div>
+          <p class="card-sub" style="margin-top:4px;margin-bottom:12px;">Código fornecido pela coordenação de manutenção. Necessário para usar a IA.</p>
           <div class="api-row">
-            <input type="password" id="api-key-input" placeholder="sk-ant-...">
+            <input type="password" id="api-key-input" placeholder="Código de acesso">
             <button class="btn btn-primary" onclick="salvarApiKey()">Salvar</button>
           </div>
           <div id="api-key-status" style="margin-top:8px;font-size:12px;color:var(--muted);"></div>
@@ -745,7 +745,7 @@ function getHistorico() {
 }
 function saveHistorico(h) { localStorage.setItem('mov_historico', JSON.stringify(h)); }
 
-function getApiKey() { return localStorage.getItem('mov_api_key') || ''; }
+function getApiKey() { return localStorage.getItem('mov_access_code') || ''; }
 function getConfig() {
   const c = localStorage.getItem('mov_config');
   return c ? JSON.parse(c) : { nome: '', empresa: 'Grupo MOV' };
@@ -866,11 +866,11 @@ EMPRESA: ${empresa || 'Não informada'}
 SINTOMA: ${sintoma}${extra ? '\nINFO DO CLIENTE: ' + extra : ''}`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      headers: { 'Content-Type': 'application/json', 'x-mov-code': apiKey },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1500,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMsg }]
@@ -1230,7 +1230,7 @@ function dropFile(e) { e.preventDefault(); dragLeave(); handleFiles(e.dataTransf
 
 async function handleFiles(files) {
   const apiKey = getApiKey();
-  if (!apiKey) { alert('Configure a chave da API em Configurações primeiro.'); showScreen('config'); return; }
+  if (!apiKey) { alert('Informe o código de acesso MOV em Configurações primeiro.'); showScreen('config'); return; }
   const list = document.getElementById('file-list');
 
   for (const file of files) {
@@ -1249,11 +1249,11 @@ async function handleFiles(files) {
       const b64 = await toBase64(file);
       document.getElementById('prog-'+itemId).style.width = '40%';
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        headers: { 'Content-Type': 'application/json', 'x-mov-code': apiKey },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 1500,
           messages: [{
             role: 'user',
@@ -1344,7 +1344,7 @@ function desmarcarTodos() { document.querySelectorAll('#checklist-container inpu
 
 async function analisarPreventiva() {
   const apiKey = getApiKey();
-  if (!apiKey) { alert('Configure a chave da API em Configurações.'); return; }
+  if (!apiKey) { alert('Informe o código de acesso MOV em Configurações.'); return; }
   const modelo = document.getElementById('p-modelo').value;
   const pat = document.getElementById('p-pat').value;
   const horimetro = document.getElementById('p-horimetro').value;
@@ -1374,10 +1374,10 @@ OBSERVAÇÕES: ${obs || 'Nenhuma'}
 Forneça: pontos de atenção, pendências críticas, próxima preventiva recomendada e dicas de operação.`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+      headers: { 'Content-Type': 'application/json', 'x-mov-code': apiKey },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await res.json();
     thinking.style.display = 'none';
@@ -1399,9 +1399,10 @@ Forneça: pontos de atenção, pendências críticas, próxima preventiva recome
 // ============================================================
 function salvarApiKey() {
   const key = document.getElementById('api-key-input').value.trim();
-  if (!key.startsWith('sk-ant-')) { document.getElementById('api-key-status').textContent = '⚠️ Chave inválida. Deve começar com sk-ant-'; return; }
-  localStorage.setItem('mov_api_key', key);
-  document.getElementById('api-key-status').textContent = '✓ Chave salva com sucesso!';
+  if (!key) { document.getElementById('api-key-status').textContent = '⚠️ Informe o código de acesso.'; return; }
+  localStorage.removeItem('mov_api_key');
+  localStorage.setItem('mov_access_code', key);
+  document.getElementById('api-key-status').textContent = '✓ Código salvo!';
   document.getElementById('api-key-status').style.color = 'var(--green)';
   document.getElementById('status-dot').style.background = 'var(--green)';
   document.getElementById('status-text').textContent = 'IA Conectada';
