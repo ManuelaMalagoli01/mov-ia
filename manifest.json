@@ -1,17 +1,24 @@
 {
-  "name": "MOV Diagnóstico IA",
-  "short_name": "MOV Diag",
-  "description": "Diagnóstico inteligente de empilhadeiras - Grupo MOV",
+  "name": "MOV Apoio Técnico",
+  "short_name": "MOV Apoio",
+  "description": "Sistema de apoio técnico: falhas, peças, catálogos e plano de preventiva - Grupo MOV",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0f1e",
-  "theme_color": "#f97316",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%23f97316'/><text x='96' y='130' font-size='100' text-anchor='middle' fill='white'>🔧</text></svg>",
+      "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
