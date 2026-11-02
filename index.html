@@ -590,6 +590,7 @@ select{width:100%;}
           <p class="card-sub" style="margin:4px 0 0">Informe o código de acesso MOV em <a href="#" onclick="showScreen('config');return false;">Configurações</a> para inserir dados.</p>
         </div>
         <div id="adm-painel" style="display:none">
+          <div class="card" style="margin-bottom:14px" id="adm-box"></div>
           <div class="alert alert-warn" style="margin-bottom:14px;display:flex"><span id="adm-quem"></span></div>
           <div class="adm-grid">
             <div class="card">
@@ -1167,7 +1168,7 @@ function showScreen(name) {
   if (name === 'exportar') loadExportStats();
   if (name === 'catalogos') renderCatalogos();
   if (name === 'planilhas' && !arguments[1]) renderPlanilhas();
-  if (name === 'admin') renderAdmin();
+  if (name === 'admin') { renderAdmin(); renderAdmBox(); }
   if (name === 'plano') renderPlano();
   if (name === 'escala') renderEscala();
   if (name === 'pecas') setTimeout(() => { if (window.innerWidth > 768) document.getElementById('pc-q').focus(); }, 50);
@@ -3050,6 +3051,28 @@ async function esExportar(b) {
   b.disabled = false;
 }
 
+
+// ---------- código de administrador (coordenação) ----------
+function renderAdmBox() {
+  const el = document.getElementById('adm-box'); if (!el) return;
+  if (getAdminCode()) {
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><div class="card-title">✓ Modo coordenação ativo</div><div class="card-sub">Você pode importar e editar a escala e decidir as pendências.</div></div><button class="btn btn-ghost btn-sm" onclick="admSair()">Sair do modo coordenação</button></div>`;
+  } else {
+    el.innerHTML = `<div class="card-title">Modo coordenação</div><div class="card-sub">Informe o código de administrador para importar e editar a escala. Técnicos não precisam disso.</div>
+      <div style="display:flex;gap:8px;margin-top:10px"><input type="password" id="adm-code2" placeholder="Código de administrador" style="flex:1" onkeydown="if(event.key==='Enter')admEntrar()"><button class="btn btn-primary" onclick="admEntrar()">Entrar</button></div>
+      <div id="adm-status2" style="margin-top:8px;font-size:12.5px;color:#b91c1c"></div>`;
+  }
+}
+async function admEntrar() {
+  const c = document.getElementById('adm-code2').value.trim(); if (!c) return;
+  localStorage.setItem('mov_admin_code', c);
+  try {
+    const d = await api('verificar_admin');
+    if (!d.ok) throw new Error('Código de administrador incorreto.');
+    renderAdmBox();
+  } catch (e) { localStorage.removeItem('mov_admin_code'); document.getElementById('adm-status2').textContent = '⚠️ ' + e.message; }
+}
+function admSair() { localStorage.removeItem('mov_admin_code'); renderAdmBox(); }
 // ---------- importação (admin) ----------
 function esLerEscala(wb) {
   const nome = wb.SheetNames.find(n => esNorm(n) === 'escala') || wb.SheetNames.find(n => esNorm(n).includes('escala'));
