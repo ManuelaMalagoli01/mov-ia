@@ -564,6 +564,13 @@ select{width:100%;}
             <button class="btn btn-primary" style="margin-top:12px" onclick="salvarPecaManual()">Cadastrar peça</button>
             <div id="pm-status" style="margin-top:8px;font-size:12.5px;color:var(--gray)"></div>
           </div>
+          <div class="card" style="margin-top:16px">
+            <div class="card-title">Importar planos por Excel</div>
+            <p class="card-sub" style="margin:4px 0 12px">Planilha com as colunas Modelo, Trocar a cada (h), Descrição e Qtde (ou uma aba por modelo com blocos "A cada X h"). Cria os modelos novos e atualiza os que já existem.</p>
+            <input type="file" id="pl-imp-arq" accept=".xlsx,.xls">
+            <button class="btn btn-primary" style="margin-top:10px;width:100%" onclick="plImportarExcel()">Importar planos</button>
+            <div id="pl-imp-status" style="margin-top:8px;font-size:12.5px;color:var(--gray)"></div>
+          </div>
           <div class="card" style="margin-top:16px" id="pl-editor">
             <div class="card-title" id="pl-e-titulo">Novo plano por modelo</div>
             <p class="card-sub" style="margin:4px 0 12px">Dados do fabricante tirados do catálogo. O app cruza com o horímetro e monta o plano da máquina.</p>
@@ -2557,6 +2564,86 @@ async function plSalvar() {
   const st = document.getElementById('pl-e-status');
   try { await api('salvar_plano', null, corpo); st.textContent = '✓ Plano salvo.'; plNovo(); renderAdminPlanos(); }
   catch (e) { st.textContent = '⚠️ ' + e.message; }
+}
+
+// ---------- importar planos por Excel (admin) ----------
+function plNorm(t) { return String(t || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function plLerPlanilha(wb) {
+  const mapa = {}; // nome do modelo -> {horas -> [itens]}
+  const add = (mod, h, desc, q) => {
+    mod = String(mod || '').trim(); desc = String(desc || '').trim();
+    if (!mod || !desc) return;
+    const qt = String(q === undefined || q === null || q === '' ? '' : q).trim();
+    const txt = desc + (qt ? ' (qtd ' + qt + ')' : '');
+    ((mapa[mod] = mapa[mod] || {})[h] = mapa[mod][h] || []).push(txt);
+  };
+  const horasDe = v => { const t = plNorm(v); if (!t || t.includes('visita') || t.includes('inspe')) return 0; const m = t.match(/(\d[\d.]*)/); return m ? parseInt(m[1].replace(/\./g, ''), 10) : 0; };
+  wb.SheetNames.forEach(sn => {
+    const raw = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '' });
+    // formato 1: tabela simples com cabeçalho Modelo | A cada | Descrição | Qtde
+    let iH = -1, cM = -1, cH = -1, cD = -1, cQ = -1;
+    for (let i = 0; i < Math.min(raw.length, 20); i++) {
+      const l = (raw[i] || []).map(plNorm);
+      const m = l.findIndex(c => c === 'modelo'), d = l.findIndex(c => c.startsWith('descri'));
+      if (m >= 0 && d >= 0) { iH = i; cM = m; cD = d; cH = l.findIndex(c => c.includes('cada') || c.includes('hora')); cQ = l.findIndex(c => c.startsWith('qt')); break; }
+    }
+    if (iH >= 0 && cH >= 0) {
+      raw.slice(iH + 1).forEach(l => add(l[cM], horasDe(l[cH]), l[cD], cQ >= 0 ? l[cQ] : ''));
+      return;
+    }
+    // formato 2: uma aba por modelo, título "PLANO PREVENTIVO — MODELO" e blocos "A cada X h"
+    let mod = '';
+    for (const l of raw.slice(0, 5)) { const t = String((l || []).find(c => c) || ''); const m = t.match(/PLANO PREVENTIVO\s*[—-]\s*(.+)/i); if (m) { mod = m[1].trim(); break; } }
+    if (!mod) return;
+    let h = null, cab = null;
+    raw.forEach(l => {
+      const cel = (l || []).map(c => String(c).trim());
+      const ac = cel.find(c => /^a cada/i.test(c));
+      if (ac) { h = horasDe(ac); cab = null; return; }
+      const n = cel.map(plNorm);
+      if (n.includes('descricao') && n.some(c => c.startsWith('qt'))) { cab = { d: n.indexOf('descricao'), q: n.findIndex(c => c.startsWith('qt')) }; return; }
+      if (h !== null && cab && cel[cab.d]) add(mod, h, cel[cab.d], cel[cab.q]);
+    });
+  });
+  // monta no formato do app; itens "cada visita" entram no menor intervalo (aparecem em toda revisão)
+  return Object.keys(mapa).map(nome => {
+    const porH = mapa[nome];
+    const hs = Object.keys(porH).map(Number).filter(x => x > 0).sort((a, b) => a - b);
+    if (!hs.length) return null;
+    const intervalos = hs.map(x => ({ horas: x, itens: [...porH[x]] }));
+    intervalos[0].itens = (porH[0] || []).map(t => t + ' · cada visita').concat(intervalos[0].itens);
+    const partes = nome.split(/\s+/);
+    const marca = partes.length > 1 ? partes[0] : '';
+    const modelo = partes.length > 1 ? partes.slice(1).join(' ') : nome;
+    return { marca, modelo, intervalos };
+  }).filter(Boolean);
+}
+async function plImportarExcel() {
+  if (!(getConfig().nome || '').trim()) { alert('Coloque seu nome em Configurações antes de inserir dados.'); showScreen('config'); return; }
+  const arq = document.getElementById('pl-imp-arq').files[0];
+  const st = document.getElementById('pl-imp-status');
+  if (!arq) { st.textContent = '⚠️ Escolha o arquivo Excel.'; return; }
+  try {
+    st.textContent = 'Lendo planilha…';
+    const wb = XLSX.read(await arq.arrayBuffer(), { type: 'array' });
+    const planos = plLerPlanilha(wb);
+    if (!planos.length) { st.textContent = '⚠️ Não achei nenhum modelo. Confira se tem as colunas Modelo, Trocar a cada (h), Descrição e Qtde.'; return; }
+    await carregarPlanos(true);
+    const chave = p => plNorm((p.marca || '') + ' ' + p.modelo).replace(/[\s\/\-.]+/g, '');
+    const existentes = {}; PLANOS.forEach(p => existentes[chave(p)] = p);
+    const novos = planos.filter(p => !existentes[chave(p)]).length;
+    if (!confirm(`${planos.length} modelos na planilha: ${novos} novos e ${planos.length - novos} que já existem e serão substituídos. Continuar?`)) { st.textContent = 'Importação cancelada.'; return; }
+    let ok = 0; const erros = [];
+    for (const p of planos) {
+      const ex = existentes[chave(p)];
+      const corpo = { id: ex ? ex.id : '', marca: p.marca, modelo: p.modelo, fonte: ex ? (ex.fonte || '') : 'Plano de preventiva Grupo MOV (Excel)', obs: ex ? (ex.obs || '') : '', intervalos: p.intervalos };
+      try { await api('salvar_plano', null, corpo); ok++; st.textContent = `Importando… ${ok}/${planos.length}`; }
+      catch (e) { erros.push((p.marca + ' ' + p.modelo).trim() + ': ' + e.message); }
+    }
+    st.textContent = `✓ ${ok} modelo(s) importado(s).` + (erros.length ? ' Erros: ' + erros.join(' | ') : '');
+    document.getElementById('pl-imp-arq').value = '';
+    PLANO_CALC = null; renderAdminPlanos();
+  } catch (e) { st.textContent = '⚠️ ' + e.message; }
 }
 async function plExcluir(id, b) {
   if (!confirm('Excluir o plano desse modelo?')) return;
