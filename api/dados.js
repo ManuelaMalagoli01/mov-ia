@@ -47,6 +47,20 @@ function filtroAnd(campo, ts) {
   return 'and=(' + ts.map(t => `${campo}.ilike.*${t}*`).join(',') + ')';
 }
 
+// lista completa da escala, paginando de 1000 em 1000
+async function escalaTodos(filtro) {
+  const cols = 'id,chave,linha,data,data_original,equipe,empresa,cidade,pat,equipamento,lider,executor,tipo,status,data_realizada,horimetro,relatorio,obs,atualizado_por,atualizado_em';
+  const temSelect = /(^|&)select=/.test(filtro);
+  let out = [];
+  for (let ini = 0; ; ini += 1000) {
+    const q = 'escala_preventivas?' + (temSelect ? '' : 'select=' + cols + '&') + filtro;
+    const lote = await rest(q, { headers: { Range: `${ini}-${ini + 999}`, 'Range-Unit': 'items' } });
+    out = out.concat(lote || []);
+    if (!lote || lote.length < 1000) break;
+  }
+  return out;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
@@ -61,7 +75,7 @@ export default async function handler(req, res) {
   const b = req.method === 'POST' ? (req.body || {}) : {};
   let autor = ''; try { autor = decodeURIComponent(req.headers['x-mov-user'] || '').slice(0, 60); } catch (e) {}
   const acao = (req.query.acao || b.acao || '').toString();
-  const precisaAdmin = []; // tudo liberado para quem tem o codigo de acesso
+  const precisaAdmin = ['importar_escala', 'decidir_escala', 'salvar_escala', 'excluir_escala']; // o resto e liberado para quem tem o codigo de acesso
   if (precisaAdmin.includes(acao) && !ehAdmin) { res.status(403).json({ erro: 'Somente administrador.' }); return; }
 
   try {
@@ -193,6 +207,115 @@ export default async function handler(req, res) {
         const id = String(b.id || '').replace(/[^0-9a-f\-]/gi, '');
         await rest(`planos_preventiva?id=eq.${id}`, { method: 'DELETE' });
         res.json({ ok: true }); return;
+      }
+
+      // ---------- ESCALA DE PREVENTIVAS ----------
+      case 'escala': {
+        const de = String(req.query.de || '').slice(0, 10), ate = String(req.query.ate || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) throw new Error('Período inválido.');
+        const itens = await escalaTodos(`data=gte.${de}&data=lte.${ate}&order=data.asc,empresa.asc`);
+        res.json({ itens }); return;
+      }
+      case 'escala_pendentes': {
+        const itens = await escalaTodos(`status=in.(${encodeURIComponent('"Pendente execução","Não realizada"')})&order=data.asc`);
+        res.json({ itens }); return;
+      }
+      case 'baixa_escala': {
+        const id = String(b.id || '').replace(/[^0-9a-f\-]/gi, '');
+        const atual = (await rest(`escala_preventivas?select=id,status,lider,executor&id=eq.${id}`))[0];
+        if (!atual) throw new Error('Atendimento não encontrado.');
+        if (!ehAdmin) {
+          if (atual.status === 'Cancelada') throw new Error('Atendimento cancelado pela coordenação.');
+          if (atual.status === 'Realizada' || atual.status === 'Não realizada') throw new Error('A baixa já foi registrada. Para corrigir, fale com a coordenação.');
+          const nz = t => String(t || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+          if (!autor || ![atual.lider, atual.executor].some(n => n && nz(n) === nz(autor)))
+            throw new Error(`Esse atendimento é de ${[atual.lider, atual.executor].filter(Boolean).join(' e ')}. Confira se seu nome em Configurações está igual ao da escala.`);
+        }
+        const st = String(b.status || '');
+        const row = { atualizado_em: new Date().toISOString(), atualizado_por: autor || null, obs: String(b.obs || '').slice(0, 500) || null };
+        if (st === 'Realizada') {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.data_realizada || ''))) throw new Error('Informe a data em que foi feita.');
+          Object.assign(row, { status: 'Realizada', data_realizada: b.data_realizada, horimetro: String(b.horimetro || '').slice(0, 30) || null, relatorio: String(b.relatorio || '').slice(0, 30) || null });
+        } else if (st === 'Não realizada') {
+          if (!row.obs) throw new Error('Informe o motivo.');
+          Object.assign(row, { status: 'Não realizada', data_realizada: null });
+        } else throw new Error('Status inválido.');
+        await rest(`escala_preventivas?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(row) });
+        res.json({ ok: true }); return;
+      }
+      case 'decidir_escala': {
+        const id = String(b.id || '').replace(/[^0-9a-f\-]/gi, '');
+        const atual = (await rest(`escala_preventivas?select=id,data,data_original&id=eq.${id}`))[0];
+        if (!atual) throw new Error('Atendimento não encontrado.');
+        const st = String(b.status || '');
+        if (!['Pendente execução', 'Cancelada', 'Programada'].includes(st)) throw new Error('Decisão inválida.');
+        const row = { status: st, atualizado_em: new Date().toISOString(), atualizado_por: (autor || 'Coordenação') + ' (coordenação)' };
+        if (st !== 'Cancelada' && st !== 'Programada') row.data_realizada = null;
+        if (st === 'Programada') row.data_realizada = null;
+        if (b.obs !== undefined && String(b.obs).trim()) row.obs = String(b.obs).slice(0, 500);
+        const nova = String(b.nova_data || '');
+        if (nova) {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(nova)) throw new Error('Nova data inválida.');
+          if (nova !== atual.data) { row.data = nova; if (!atual.data_original) row.data_original = atual.data; }
+        }
+        await rest(`escala_preventivas?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(row) });
+        res.json({ ok: true }); return;
+      }
+      case 'importar_escala': {
+        // o app é o oficial: a planilha só acrescenta atendimentos que ainda não existem.
+        const linhas = (b.linhas || []).filter(l => l && l.chave && /^\d{4}-\d{2}-\d{2}$/.test(String(l.data || '')));
+        if (!linhas.length) throw new Error('Nenhuma linha válida.');
+        const txt = (v, n) => { const t = String(v == null ? '' : v).trim(); return t ? t.slice(0, n || 200) : null; };
+        const existentes = await escalaTodos('select=id,chave');
+        const tem = new Set(existentes.map(e => e.chave));
+        const agora = new Date().toISOString();
+        const novos = linhas.filter(l => !tem.has(l.chave)).map(l => ({
+          chave: l.chave, linha: Number.isInteger(l.linha) ? l.linha : null, data: l.data, equipe: txt(l.equipe, 20), empresa: txt(l.empresa), cidade: txt(l.cidade, 80),
+          pat: txt(l.pat, 40), equipamento: txt(l.equipamento, 120), lider: txt(l.lider, 80), executor: txt(l.executor, 80), tipo: txt(l.tipo, 80),
+          status: txt(l.status, 40) || 'Programada', data_realizada: /^\d{4}-\d{2}-\d{2}$/.test(String(l.data_realizada || '')) ? l.data_realizada : null,
+          horimetro: txt(l.horimetro, 30), relatorio: txt(l.relatorio, 30), obs: txt(l.obs, 500), atualizado_em: agora, atualizado_por: 'Importação ' + (autor || '') }));
+        for (let i = 0; i < novos.length; i += 400) await rest('escala_preventivas', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(novos.slice(i, i + 400)) });
+        res.json({ ok: true, novos: novos.length, ignorados: linhas.length - novos.length }); return;
+      }
+      case 'salvar_escala': {
+        const txt = (v, n) => { const t = String(v == null ? '' : v).trim(); return t ? t.slice(0, n || 200) : null; };
+        const data = String(b.data || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new Error('Informe a data.');
+        if (!txt(b.empresa)) throw new Error('Informe o cliente.');
+        if (!txt(b.lider)) throw new Error('Informe o técnico líder.');
+        const row = { data, equipe: txt(b.equipe, 20), empresa: txt(b.empresa), cidade: txt(b.cidade, 80), pat: txt(b.pat, 40), equipamento: txt(b.equipamento, 120),
+          lider: txt(b.lider, 80), executor: txt(b.executor, 80), tipo: txt(b.tipo, 80) || 'Preventiva mensal', obs: txt(b.obs, 500),
+          atualizado_em: new Date().toISOString(), atualizado_por: (autor || 'Coordenação') + ' (coordenação)' };
+        const id = String(b.id || '').replace(/[^0-9a-f\-]/gi, '');
+        if (id) {
+          const atual = (await rest(`escala_preventivas?select=id,data,data_original,status&id=eq.${id}`))[0];
+          if (!atual) throw new Error('Atendimento não encontrado.');
+          if (atual.data !== data && !atual.data_original && atual.status !== 'Programada') row.data_original = atual.data;
+          await rest(`escala_preventivas?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(row) });
+        } else {
+          row.chave = 'app-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+          row.status = 'Programada';
+          await rest('escala_preventivas', { method: 'POST', body: JSON.stringify(row) });
+        }
+        res.json({ ok: true }); return;
+      }
+      case 'excluir_escala': {
+        const id = String(b.id || '').replace(/[^0-9a-f\-]/gi, '');
+        if (!id) throw new Error('Atendimento inválido.');
+        await rest(`escala_preventivas?id=eq.${id}`, { method: 'DELETE' });
+        res.json({ ok: true }); return;
+      }
+      case 'escala_cadastros': {
+        // listas para preencher o formulário: clientes, técnicos e o último registro de cada PAT
+        const todos = await escalaTodos('select=pat,empresa,cidade,equipamento,equipe,lider,executor,data&order=data.asc');
+        const pats = {}, empresas = {}, tecnicos = {}, lideres = {};
+        todos.forEach(r => {
+          if (r.pat) pats[r.pat] = { empresa: r.empresa, cidade: r.cidade, equipamento: r.equipamento };
+          if (r.empresa) empresas[r.empresa] = r.cidade || '';
+          if (r.lider) { tecnicos[r.lider] = 1; if (r.equipe) lideres[r.lider] = r.equipe; }
+          if (r.executor) tecnicos[r.executor] = 1;
+        });
+        res.json({ pats, empresas, tecnicos: Object.keys(tecnicos).sort(), lideres }); return;
       }
 
       default:
