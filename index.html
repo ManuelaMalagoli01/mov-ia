@@ -2860,7 +2860,7 @@ function esRender() {
   const atrasadas = ES.itens.filter(it => esDoTec(it) && esSit(it) === 'atr');
   let ph = '';
   if (pendExec.length) ph += esBloco('Pendente execução', pendExec, 'es-s-pend', 'Definido pela coordenação. Executar assim que possível.');
-  if (esEhAdmin() && aguardDecisao.length) ph += esBloco('Não realizadas aguardando sua decisão', aguardDecisao, 'es-s-nao', 'Defina se fica como pendente de execução, reprograma ou cancela.');
+  if (esEhAdmin() && aguardDecisao.length) ph += esBloco('Não realizadas aguardando sua decisão', aguardDecisao, 'es-s-nao', 'Aprove a nova data sugerida pelo técnico, defina outra, marque como pendente de execução ou cancele.');
   if (atrasadas.length) ph += `<div class="card" style="margin-bottom:16px"><div class="card-title"><span class="es-dot es-s-atr">${atrasadas.length}</span> atendimento(s) deste mês com data passada e sem baixa</div><div class="card-sub">Abra o dia no calendário e dê baixa como realizada ou não realizada.</div></div>`;
   if (esEhAdmin()) ph = `<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn-primary btn-sm" onclick="esNovo()">+ Novo atendimento</button><button class="btn btn-ghost btn-sm" onclick="esExportar(this)">⬇ Exportar mês (Excel)</button></div>` + ph;
   document.getElementById('es-pend').innerHTML = ph;
@@ -2912,8 +2912,8 @@ function esCard(it) {
       <div class="es-meta">${esBr(it.data)}${reprog} · PAT ${escHtml(it.pat || '')}${it.equipamento ? ' · ' + escHtml(it.equipamento) : ''}${it.cidade ? ' · ' + escHtml(it.cidade) : ''}</div>
       <div class="es-meta">Equipe ${escHtml(it.equipe || '')}: ${escHtml(it.lider || '')}${it.executor ? ' + ' + escHtml(it.executor) : ''}${it.tipo ? ' · ' + escHtml(it.tipo) : ''}</div></div>
       <span class="es-dot ${esClasse(sit)}" style="font-size:11.5px;padding:3px 10px">${escHtml(esRotulo(sit))}</span></div>
-    ${exec}${it.obs ? `<div class="es-meta">Obs.: ${escHtml(it.obs)}</div>` : ''}${it.atualizado_por ? `<div class="es-meta" style="font-size:11px">Última alteração: ${escHtml(it.atualizado_por)}</div>` : ''}
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${pode ? `<button class="btn btn-ghost btn-sm" onclick="esEditar('${it.id}')">${['Realizada', 'Não realizada', 'Cancelada'].includes(it.status) ? 'Corrigir situação' : 'Dar baixa'}</button>` : ''}${esEhAdmin() ? `<button class="btn btn-ghost btn-sm" onclick="esForm('${it.id}')">Editar atendimento</button>` : ''}</div>
+    ${exec}${it.obs ? `<div class="es-meta">Obs.: ${escHtml(it.obs)}</div>` : ''}${it.data_sugerida ? `<div class="es-meta" style="color:#c2410c;font-weight:600">Nova data sugerida pelo técnico: ${esBr(it.data_sugerida)}</div>` : ''}${it.atualizado_por ? `<div class="es-meta" style="font-size:11px">Última alteração: ${escHtml(it.atualizado_por)}</div>` : ''}
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${pode ? `<button class="btn btn-ghost btn-sm" onclick="esEditar('${it.id}')">${['Realizada', 'Não realizada', 'Cancelada'].includes(it.status) ? 'Corrigir situação' : 'Dar baixa'}</button>` : ''}${esEhAdmin() && it.data_sugerida ? `<button class="btn btn-primary btn-sm" onclick="esAprovarData('${it.id}',this)">Aprovar ${esBr(it.data_sugerida)}</button>` : ''}${esEhAdmin() ? `<button class="btn btn-ghost btn-sm" onclick="esForm('${it.id}')">Editar atendimento</button>` : ''}</div>
   </div>`;
 }
 function esAchar(id) { return ES.itens.find(x => x.id === id) || ES.pend.find(x => x.id === id); }
@@ -2931,11 +2931,12 @@ function esEditar(id) {
       <div><label>Horímetro</label><input type="text" inputmode="decimal" id="es-f-hor" value="${escHtml(it.horimetro || '')}"></div>
       <div><label>Nº do relatório</label><input type="text" inputmode="numeric" id="es-f-rel" value="${escHtml(it.relatorio || '')}"></div></div>
     </div>
+    <div id="es-f-nao" style="margin-top:10px"><label>Sugerir nova data (opcional)</label><input type="date" id="es-f-sug" min="${esHojeIso()}" value="${it.data_sugerida || ''}"><div class="card-sub" style="margin-top:4px">A coordenação aprova ou define outra data.</div></div>
     <div style="margin-top:10px"><label id="es-f-obs-l">Observação</label><input type="text" id="es-f-obs" value="${escHtml(it.obs || '')}" placeholder="Opcional"></div>`;
   if (esEhAdmin()) h += `
     <div class="es-adm"><div class="card-title">Decisão da coordenação</div><div class="card-sub">Só aparece para o código de administrador. Se escolher uma decisão, ela vale no lugar da baixa acima.</div>
-      <div class="diag-grid" style="margin:10px 0 0"><div><label>Decisão</label><select id="es-f-dec"><option value="">Nenhuma</option><option>Pendente execução</option><option>Cancelada</option><option value="Programada">Reabrir como programada</option></select></div>
-      <div><label>Nova data (opcional)</label><input type="date" id="es-f-nova"></div></div></div>`;
+      <div class="diag-grid" style="margin:10px 0 0"><div><label>Decisão</label><select id="es-f-dec"><option value="">Nenhuma</option><option>Pendente execução</option><option>Cancelada</option><option value="Programada">Reagendar / reabrir como programada</option></select></div>
+      <div><label>Nova data (opcional)</label><input type="date" id="es-f-nova" value="${it.data_sugerida || ''}"></div></div></div>`;
   h += `<div style="display:flex;gap:8px;margin-top:16px"><button class="btn btn-primary" style="flex:1" onclick="esSalvar(this)">Salvar</button><button class="btn btn-ghost" onclick="esFechar()">Cancelar</button></div>
     <div id="es-f-msg" style="margin-top:8px;font-size:12.5px;color:#b91c1c"></div>`;
   document.getElementById('es-modal-box').innerHTML = h;
@@ -2945,8 +2946,16 @@ function esEditar(id) {
 function esToggle() {
   const v = (document.querySelector('input[name="es-f-st"]:checked') || {}).value;
   document.getElementById('es-f-real').style.display = v === 'Realizada' ? '' : 'none';
+  document.getElementById('es-f-nao').style.display = v === 'Realizada' ? 'none' : '';
   document.getElementById('es-f-obs-l').textContent = v === 'Realizada' ? 'Observação' : 'Motivo (obrigatório)';
   document.getElementById('es-f-obs').placeholder = v === 'Realizada' ? 'Opcional' : 'Ex: máquina parada, cliente pediu para remarcar';
+}
+async function esAprovarData(id, b) {
+  const it = esAchar(id); if (!it || !it.data_sugerida) return;
+  if (!confirm(`Reagendar ${it.empresa || ''} (PAT ${it.pat || ''}) para ${esBr(it.data_sugerida)}?`)) return;
+  b.disabled = true;
+  try { await api('decidir_escala', null, { id, status: 'Programada', nova_data: it.data_sugerida }); await esCarregar(); }
+  catch (e) { alert(e.message); b.disabled = false; }
 }
 function esFechar() { document.getElementById('es-modal').style.display = 'none'; }
 async function esSalvar(b) {
@@ -2968,7 +2977,11 @@ async function esSalvar(b) {
         corpo.relatorio = document.getElementById('es-f-rel').value.trim();
         if (!corpo.data_realizada) throw new Error('Informe a data em que foi feita.');
         if (corpo.data_realizada > esHojeIso()) throw new Error('A data realizada não pode ser no futuro.');
-      } else if (!corpo.obs) throw new Error('Informe o motivo de não ter sido realizada.');
+      } else {
+        if (!corpo.obs) throw new Error('Informe o motivo de não ter sido realizada.');
+        corpo.data_sugerida = document.getElementById('es-f-sug').value || '';
+        if (corpo.data_sugerida && corpo.data_sugerida < esHojeIso()) throw new Error('A data sugerida não pode ser no passado.');
+      }
       await api('baixa_escala', null, corpo);
     }
     esFechar();
