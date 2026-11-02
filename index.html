@@ -375,6 +375,44 @@ select{width:100%;}
 .pl-int textarea{min-height:90px;}
 @media(max-width:768px){.plano-kpis{grid-template-columns:1fr 1fr;}.plano-kpis div:last-child{grid-column:span 2;}}
 </style>
+<style>
+.es-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.es-mes{display:flex;align-items:center;gap:8px}
+.es-mes strong{font-size:17px;min-width:150px;text-align:center;text-transform:capitalize}
+.es-filtros{display:flex;gap:8px;flex-wrap:wrap}
+.es-filtros select{min-width:170px}
+.es-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.es-dow{font-size:11px;font-weight:700;color:var(--gray);text-align:center;text-transform:uppercase;padding:4px 0}
+.es-cel{min-height:78px;border:1px solid #e5e7eb;border-radius:10px;padding:6px;cursor:pointer;background:#fff;display:flex;flex-direction:column;gap:3px;transition:border .15s}
+.es-cel:hover{border-color:#1A1A1A}
+.es-cel.fora{background:#fafafa;opacity:.45;cursor:default}
+.es-cel.hoje{box-shadow:inset 0 0 0 2px #F5C200}
+.es-cel.sel{border-color:#1A1A1A;box-shadow:0 0 0 2px #1A1A1A}
+.es-n{font-size:12px;font-weight:700;color:#1A1A1A}
+.es-dots{display:flex;flex-wrap:wrap;gap:3px}
+.es-dot{font-size:10.5px;font-weight:700;border-radius:10px;padding:1px 6px;line-height:1.5}
+.es-s-prog{background:#eef0f3;color:#4A4A4A}
+.es-s-atr{background:#fde8e8;color:#b91c1c}
+.es-s-ok{background:#e7f6ec;color:#15803d}
+.es-s-nao{background:#fee2e2;color:#b91c1c}
+.es-s-pend{background:#fff1e6;color:#c2410c}
+.es-s-canc{background:#f1f2f5;color:#9ca3af;text-decoration:line-through}
+.es-leg{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--gray)}
+.es-item{border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin-top:10px;background:#fff}
+.es-item-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.es-item-top strong{font-size:14px}
+.es-meta{font-size:12.5px;color:var(--gray);margin-top:3px}
+.es-exec{font-size:12.5px;margin-top:6px;color:#15803d}
+.es-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.es-modal{background:#fff;border-radius:16px;max-width:520px;width:100%;max-height:92vh;overflow:auto;padding:22px}
+.es-opts{display:flex;gap:8px;margin:6px 0 4px}
+.es-opts label{flex:1;border:1.5px solid #e5e7eb;border-radius:10px;padding:10px;text-align:center;cursor:pointer;font-weight:600;font-size:13.5px}
+.es-opts input{display:none}
+.es-opts input:checked+span{color:#1A1A1A}
+.es-opts label:has(input:checked){border-color:#1A1A1A;background:#f6f7f9}
+.es-adm{margin-top:16px;padding-top:14px;border-top:1px dashed #d1d5db}
+@media(max-width:768px){.es-cel{min-height:56px;padding:4px}.es-dot{font-size:9.5px;padding:0 4px}.es-filtros select{min-width:0;flex:1}.es-grid{gap:3px}}
+</style>
 </head>
 <body>
 
@@ -404,6 +442,10 @@ select{width:100%;}
       <div class="nav-item" onclick="showScreen('plano')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
         Plano de Preventiva
+      </div>
+      <div class="nav-item" onclick="showScreen('escala')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2zM9 14l2 2 4-4"/></svg>
+        Escala
       </div>
       <div class="nav-item" onclick="showScreen('planilhas')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 10h18M3 15h18M9 4v16M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/></svg>
@@ -475,6 +517,25 @@ select{width:100%;}
         </div>
         <div id="pc-res"></div>
       </div>
+
+      <!-- ESCALA -->
+      <div class="screen" id="screen-escala">
+        <div class="card" style="margin-bottom:16px">
+          <div class="es-bar">
+            <div class="es-mes"><button class="btn btn-ghost btn-sm" onclick="esMudarMes(-1)">‹</button><strong id="es-mes-txt"></strong><button class="btn btn-ghost btn-sm" onclick="esMudarMes(1)">›</button><button class="btn btn-ghost btn-sm" onclick="esHoje()">Hoje</button></div>
+            <div class="es-filtros">
+              <select id="es-tec" onchange="esFiltroTec()"></select>
+              <select id="es-st" onchange="esRender()"><option value="">Todos os status</option><option>Programada</option><option value="atr">Aguardando baixa</option><option>Realizada</option><option>Não realizada</option><option>Pendente execução</option><option>Cancelada</option></select>
+            </div>
+          </div>
+        </div>
+        <div id="es-pend"></div>
+        <div class="card"><div id="es-cal"><div class="vazio">Carregando…</div></div>
+          <div class="es-leg"><span class="es-dot es-s-prog">Programada</span><span class="es-dot es-s-atr">Aguardando baixa</span><span class="es-dot es-s-ok">Realizada</span><span class="es-dot es-s-nao">Não realizada</span><span class="es-dot es-s-pend">Pendente execução</span><span class="es-dot es-s-canc">Cancelada</span></div>
+        </div>
+        <div id="es-dia" style="margin-top:16px"></div>
+      </div>
+      <div id="es-modal" class="es-modal-bg" style="display:none" onclick="if(event.target===this)esFechar()"><div class="es-modal" id="es-modal-box"></div></div>
 
       <!-- PLANO PREVENTIVA -->
       <div class="screen" id="screen-plano">
@@ -563,6 +624,13 @@ select{width:100%;}
             </div>
             <button class="btn btn-primary" style="margin-top:12px" onclick="salvarPecaManual()">Cadastrar peça</button>
             <div id="pm-status" style="margin-top:8px;font-size:12.5px;color:var(--gray)"></div>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <div class="card-title">Carga inicial da escala (Excel)</div>
+            <p class="card-sub" style="margin:4px 0 12px">Arquivo ESCALA.xlsx, aba ESCALA. Carga a partir do ESCALA.xlsx, aba ESCALA. O app é o oficial: a planilha só inclui atendimentos que ainda não existem, nunca altera nem apaga o que já está no app. Depois, edite direto na tela Escala. Exige código de administrador.</p>
+            <input type="file" id="es-imp-arq" accept=".xlsx,.xlsm,.xls">
+            <button class="btn btn-primary" style="margin-top:10px;width:100%" onclick="esImportar()">Importar escala</button>
+            <div id="es-imp-status" style="margin-top:8px;font-size:12.5px;color:var(--gray)"></div>
           </div>
           <div class="card" style="margin-top:16px">
             <div class="card-title">Importar planos por Excel</div>
@@ -1015,6 +1083,7 @@ const TITLES = {
   admin: 'Inserir Dados',
   diagnostico: 'Consulta de Falha',
   plano: 'Plano de Preventiva por Máquina',
+  escala: 'Escala de Preventivas',
   pecas: 'Peças e Códigos',
   preventiva: 'Manutenção Preventiva',
   historico: 'Histórico de Diagnósticos',
@@ -1100,6 +1169,7 @@ function showScreen(name) {
   if (name === 'planilhas' && !arguments[1]) renderPlanilhas();
   if (name === 'admin') renderAdmin();
   if (name === 'plano') renderPlano();
+  if (name === 'escala') renderEscala();
   if (name === 'pecas') setTimeout(() => { if (window.innerWidth > 768) document.getElementById('pc-q').focus(); }, 50);
   if (name === 'busca') setTimeout(() => { const q = document.getElementById('busca-q'); if (q && window.innerWidth > 768) q.focus(); }, 50);
   updateBadges();
@@ -2712,6 +2782,329 @@ async function salvarPecaManual() {
     st.textContent = '✓ Peça cadastrada. Já aparece na busca.';
     Object.values(campos).forEach(i => document.getElementById(i).value = '');
     DADOS = { catalogos: [], planilhas: [] };
+  } catch (e) { st.textContent = '⚠️ ' + e.message; }
+}
+
+</script>
+
+<script>
+// ============================================================
+// ESCALA DE PREVENTIVAS (calendário com baixa pelo técnico)
+// ============================================================
+let ES = { ano: 0, mes: 0, itens: [], pend: [], dia: null, tec: null };
+const ES_DOW = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+function esIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function esBr(iso) { if (!iso) return ''; const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${d}/${m}/${y}`; }
+function esHojeIso() { return esIso(new Date()); }
+function esNorm(t) { return String(t || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function esEhAdmin() { return !!getAdminCode(); }
+// situação visual: "Aguardando baixa" = programada com data já passada
+function esSit(it) {
+  if (it.status === 'Programada' && it.data < esHojeIso()) return 'atr';
+  return it.status;
+}
+function esClasse(sit) {
+  return { 'Programada': 'es-s-prog', 'Reprogramada': 'es-s-prog', atr: 'es-s-atr', 'Realizada': 'es-s-ok', 'Não realizada': 'es-s-nao', 'Pendente execução': 'es-s-pend', 'Cancelada': 'es-s-canc' }[sit] || 'es-s-prog';
+}
+function esRotulo(sit) { return sit === 'atr' ? 'Aguardando baixa' : sit; }
+function esDoTec(it) {
+  if (!ES.tec) return true;
+  const t = esNorm(ES.tec);
+  return esNorm(it.lider) === t || esNorm(it.executor) === t;
+}
+function esFiltrar(lista) {
+  const st = document.getElementById('es-st').value;
+  return lista.filter(it => esDoTec(it) && (!st || esSit(it) === st || (st === 'Programada' && it.status === 'Programada' && esSit(it) !== 'atr')));
+}
+
+async function renderEscala() {
+  if (!getApiKey() && !getAdminCode()) { semCodigoMsg(document.getElementById('es-cal')); return; }
+  if (!ES.ano) { const h = new Date(); ES.ano = h.getFullYear(); ES.mes = h.getMonth(); }
+  await esCarregar();
+}
+async function esCarregar() {
+  const de = new Date(ES.ano, ES.mes, 1), ate = new Date(ES.ano, ES.mes + 1, 0);
+  document.getElementById('es-mes-txt').textContent = de.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  document.getElementById('es-cal').innerHTML = '<div class="vazio"><div class="spinner spinner-dark"></div> Carregando…</div>';
+  try {
+    const [m, p] = await Promise.all([api('escala', { de: esIso(de), ate: esIso(ate) }), api('escala_pendentes')]);
+    ES.itens = m.itens || []; ES.pend = p.itens || [];
+    esMontarTecnicos();
+    esRender();
+  } catch (e) { document.getElementById('es-cal').innerHTML = '<div class="vazio">⚠️ ' + escHtml(e.message) + '</div>'; }
+}
+function esMontarTecnicos() {
+  const sel = document.getElementById('es-tec');
+  const nomes = new Set();
+  ES.itens.concat(ES.pend).forEach(it => { if (it.lider) nomes.add(it.lider); if (it.executor) nomes.add(it.executor); });
+  const lista = [...nomes].sort((a, b) => a.localeCompare(b));
+  if (ES.tec === null) {
+    const salvo = localStorage.getItem('mov_es_tec');
+    const meu = esNorm(getConfig().nome);
+    ES.tec = salvo !== null ? salvo : (lista.find(n => meu && (esNorm(n) === meu || esNorm(n).startsWith(meu) || meu.startsWith(esNorm(n)))) || '');
+  }
+  if (ES.tec && !lista.includes(ES.tec)) lista.unshift(ES.tec);
+  sel.innerHTML = '<option value="">Todos os técnicos</option>' + lista.map(n => `<option ${n === ES.tec ? 'selected' : ''}>${escHtml(n)}</option>`).join('');
+}
+function esFiltroTec() { ES.tec = document.getElementById('es-tec').value; localStorage.setItem('mov_es_tec', ES.tec); esRender(); }
+function esMudarMes(d) { ES.mes += d; if (ES.mes < 0) { ES.mes = 11; ES.ano--; } if (ES.mes > 11) { ES.mes = 0; ES.ano++; } ES.dia = null; esCarregar(); }
+function esHoje() { const h = new Date(); ES.ano = h.getFullYear(); ES.mes = h.getMonth(); ES.dia = esHojeIso(); esCarregar(); }
+
+function esRender() {
+  const itens = esFiltrar(ES.itens);
+  // painel de pendências
+  const pend = ES.pend.filter(it => esDoTec(it));
+  const pendExec = pend.filter(it => it.status === 'Pendente execução');
+  const aguardDecisao = pend.filter(it => it.status === 'Não realizada');
+  const atrasadas = ES.itens.filter(it => esDoTec(it) && esSit(it) === 'atr');
+  let ph = '';
+  if (pendExec.length) ph += esBloco('Pendente execução', pendExec, 'es-s-pend', 'Definido pela coordenação. Executar assim que possível.');
+  if (esEhAdmin() && aguardDecisao.length) ph += esBloco('Não realizadas aguardando sua decisão', aguardDecisao, 'es-s-nao', 'Defina se fica como pendente de execução, reprograma ou cancela.');
+  if (atrasadas.length) ph += `<div class="card" style="margin-bottom:16px"><div class="card-title"><span class="es-dot es-s-atr">${atrasadas.length}</span> atendimento(s) deste mês com data passada e sem baixa</div><div class="card-sub">Abra o dia no calendário e dê baixa como realizada ou não realizada.</div></div>`;
+  if (esEhAdmin()) ph = `<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn btn-primary btn-sm" onclick="esNovo()">+ Novo atendimento</button><button class="btn btn-ghost btn-sm" onclick="esExportar(this)">⬇ Exportar mês (Excel)</button></div>` + ph;
+  document.getElementById('es-pend').innerHTML = ph;
+  // calendário
+  const porDia = {};
+  itens.forEach(it => (porDia[it.data] = porDia[it.data] || []).push(it));
+  const ini = new Date(ES.ano, ES.mes, 1);
+  const off = (ini.getDay() + 6) % 7;
+  const dias = new Date(ES.ano, ES.mes + 1, 0).getDate();
+  const hoje = esHojeIso();
+  let h = '<div class="es-grid">' + ES_DOW.map(d => `<div class="es-dow">${d}</div>`).join('');
+  for (let i = 0; i < off; i++) h += '<div class="es-cel fora"></div>';
+  for (let d = 1; d <= dias; d++) {
+    const iso = esIso(new Date(ES.ano, ES.mes, d));
+    const lst = porDia[iso] || [];
+    const cont = {};
+    lst.forEach(it => { const s = esSit(it); cont[s] = (cont[s] || 0) + 1; });
+    const ordem = ['atr', 'Programada', 'Reprogramada', 'Pendente execução', 'Não realizada', 'Realizada', 'Cancelada'];
+    h += `<div class="es-cel ${iso === hoje ? 'hoje' : ''} ${iso === ES.dia ? 'sel' : ''}" onclick="esAbrirDia('${iso}')"><span class="es-n">${d}</span><div class="es-dots">` +
+      ordem.filter(s => cont[s]).map(s => `<span class="es-dot ${esClasse(s)}" title="${escHtml(esRotulo(s))}">${cont[s]}</span>`).join('') + '</div></div>';
+  }
+  h += '</div>';
+  if (!ES.itens.length) h += '<div class="vazio-sm" style="margin-top:10px">Nenhum atendimento na escala deste mês.</div>';
+  document.getElementById('es-cal').innerHTML = h;
+  esRenderDia();
+}
+function esBloco(titulo, lista, cls, sub) {
+  return `<div class="card" style="margin-bottom:16px"><div class="card-title"><span class="es-dot ${cls}">${lista.length}</span> ${escHtml(titulo)}</div><div class="card-sub">${escHtml(sub)}</div>` +
+    lista.sort((a, b) => a.data.localeCompare(b.data)).map(esCard).join('') + '</div>';
+}
+function esAbrirDia(iso) { ES.dia = ES.dia === iso ? null : iso; esRender(); if (ES.dia) document.getElementById('es-dia').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function esRenderDia() {
+  const el = document.getElementById('es-dia');
+  if (!ES.dia) { el.innerHTML = ''; return; }
+  const lst = esFiltrar(ES.itens).filter(it => it.data === ES.dia);
+  const [y, m, d] = ES.dia.split('-').map(Number);
+  const tit = new Date(y, m - 1, d).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  el.innerHTML = `<div class="card"><div class="card-title" style="text-transform:capitalize">${tit} <span class="pill">${lst.length}</span></div>` +
+    (lst.length ? lst.map(esCard).join('') : '<div class="vazio-sm" style="margin-top:8px">Nada programado neste dia para o filtro escolhido.</div>') + '</div>';
+}
+function esCard(it) {
+  const sit = esSit(it);
+  const pode = esEhAdmin() || ['Programada', 'Reprogramada', 'Pendente execução'].includes(it.status);
+  let exec = '';
+  if (it.status === 'Realizada') exec = `<div class="es-exec">✓ Realizada em ${esBr(it.data_realizada)}${it.horimetro ? ' · horímetro ' + escHtml(it.horimetro) : ''}${it.relatorio ? ' · relatório ' + escHtml(it.relatorio) : ''}</div>`;
+  const reprog = it.data_original && it.data_original !== it.data ? ` · programada antes para ${esBr(it.data_original)}` : '';
+  return `<div class="es-item">
+    <div class="es-item-top"><div><strong>${escHtml(it.empresa || '')}</strong>
+      <div class="es-meta">${esBr(it.data)}${reprog} · PAT ${escHtml(it.pat || '')}${it.equipamento ? ' · ' + escHtml(it.equipamento) : ''}${it.cidade ? ' · ' + escHtml(it.cidade) : ''}</div>
+      <div class="es-meta">Equipe ${escHtml(it.equipe || '')}: ${escHtml(it.lider || '')}${it.executor ? ' + ' + escHtml(it.executor) : ''}${it.tipo ? ' · ' + escHtml(it.tipo) : ''}</div></div>
+      <span class="es-dot ${esClasse(sit)}" style="font-size:11.5px;padding:3px 10px">${escHtml(esRotulo(sit))}</span></div>
+    ${exec}${it.obs ? `<div class="es-meta">Obs.: ${escHtml(it.obs)}</div>` : ''}${it.atualizado_por ? `<div class="es-meta" style="font-size:11px">Última alteração: ${escHtml(it.atualizado_por)}</div>` : ''}
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${pode ? `<button class="btn btn-ghost btn-sm" onclick="esEditar('${it.id}')">${['Realizada', 'Não realizada', 'Cancelada'].includes(it.status) ? 'Corrigir situação' : 'Dar baixa'}</button>` : ''}${esEhAdmin() ? `<button class="btn btn-ghost btn-sm" onclick="esForm('${it.id}')">Editar atendimento</button>` : ''}</div>
+  </div>`;
+}
+function esAchar(id) { return ES.itens.find(x => x.id === id) || ES.pend.find(x => x.id === id); }
+function esEditar(id) {
+  const it = esAchar(id); if (!it) return;
+  const real = it.status === 'Realizada', nao = it.status === 'Não realizada';
+  let h = `<div class="card-title" style="font-size:16px">${escHtml(it.empresa || '')}</div>
+    <div class="es-meta">${esBr(it.data)} · PAT ${escHtml(it.pat || '')} ${escHtml(it.equipamento || '')}</div>
+    <input type="hidden" id="es-f-id" value="${it.id}">`;
+  if (it.status !== 'Cancelada') h += `
+    <div style="margin-top:14px"><label>O atendimento foi feito?</label>
+      <div class="es-opts"><label><input type="radio" name="es-f-st" value="Realizada" ${real || (!nao) ? 'checked' : ''} onchange="esToggle()"><span>✓ Realizada</span></label><label><input type="radio" name="es-f-st" value="Não realizada" ${nao ? 'checked' : ''} onchange="esToggle()"><span>✕ Não realizada</span></label></div></div>
+    <div id="es-f-real">
+      <div class="diag-grid" style="margin:10px 0 0"><div><label>Data em que foi feita</label><input type="date" id="es-f-data" value="${it.data_realizada || esHojeIso()}"></div>
+      <div><label>Horímetro</label><input type="text" inputmode="decimal" id="es-f-hor" value="${escHtml(it.horimetro || '')}"></div>
+      <div><label>Nº do relatório</label><input type="text" inputmode="numeric" id="es-f-rel" value="${escHtml(it.relatorio || '')}"></div></div>
+    </div>
+    <div style="margin-top:10px"><label id="es-f-obs-l">Observação</label><input type="text" id="es-f-obs" value="${escHtml(it.obs || '')}" placeholder="Opcional"></div>`;
+  if (esEhAdmin()) h += `
+    <div class="es-adm"><div class="card-title">Decisão da coordenação</div><div class="card-sub">Só aparece para o código de administrador. Se escolher uma decisão, ela vale no lugar da baixa acima.</div>
+      <div class="diag-grid" style="margin:10px 0 0"><div><label>Decisão</label><select id="es-f-dec"><option value="">Nenhuma</option><option>Pendente execução</option><option>Cancelada</option><option value="Programada">Reabrir como programada</option></select></div>
+      <div><label>Nova data (opcional)</label><input type="date" id="es-f-nova"></div></div></div>`;
+  h += `<div style="display:flex;gap:8px;margin-top:16px"><button class="btn btn-primary" style="flex:1" onclick="esSalvar(this)">Salvar</button><button class="btn btn-ghost" onclick="esFechar()">Cancelar</button></div>
+    <div id="es-f-msg" style="margin-top:8px;font-size:12.5px;color:#b91c1c"></div>`;
+  document.getElementById('es-modal-box').innerHTML = h;
+  document.getElementById('es-modal').style.display = 'flex';
+  if (it.status !== 'Cancelada') esToggle();
+}
+function esToggle() {
+  const v = (document.querySelector('input[name="es-f-st"]:checked') || {}).value;
+  document.getElementById('es-f-real').style.display = v === 'Realizada' ? '' : 'none';
+  document.getElementById('es-f-obs-l').textContent = v === 'Realizada' ? 'Observação' : 'Motivo (obrigatório)';
+  document.getElementById('es-f-obs').placeholder = v === 'Realizada' ? 'Opcional' : 'Ex: máquina parada, cliente pediu para remarcar';
+}
+function esFechar() { document.getElementById('es-modal').style.display = 'none'; }
+async function esSalvar(b) {
+  if (!(getConfig().nome || '').trim()) { alert('Coloque seu nome em Configurações antes de dar baixa.'); esFechar(); showScreen('config'); return; }
+  const id = document.getElementById('es-f-id').value;
+  const msg = document.getElementById('es-f-msg'); msg.textContent = '';
+  const dec = esEhAdmin() ? document.getElementById('es-f-dec').value : '';
+  b.disabled = true;
+  try {
+    if (dec) {
+      await api('decidir_escala', null, { id, status: dec, nova_data: document.getElementById('es-f-nova').value || '', obs: (document.getElementById('es-f-obs') || {}).value || '' });
+    } else {
+      const st = (document.querySelector('input[name="es-f-st"]:checked') || {}).value;
+      if (!st) throw new Error('Escolha se foi realizada ou não.');
+      const corpo = { id, status: st, obs: document.getElementById('es-f-obs').value.trim() };
+      if (st === 'Realizada') {
+        corpo.data_realizada = document.getElementById('es-f-data').value;
+        corpo.horimetro = document.getElementById('es-f-hor').value.trim();
+        corpo.relatorio = document.getElementById('es-f-rel').value.trim();
+        if (!corpo.data_realizada) throw new Error('Informe a data em que foi feita.');
+        if (corpo.data_realizada > esHojeIso()) throw new Error('A data realizada não pode ser no futuro.');
+      } else if (!corpo.obs) throw new Error('Informe o motivo de não ter sido realizada.');
+      await api('baixa_escala', null, corpo);
+    }
+    esFechar();
+    await esCarregar();
+  } catch (e) { msg.textContent = '⚠️ ' + e.message; }
+  b.disabled = false;
+}
+
+// ---------- cadastro/edição da programação (admin) ----------
+let ES_CAD = null;
+async function esCadastros() { if (!ES_CAD) ES_CAD = await api('escala_cadastros'); return ES_CAD; }
+async function esNovo() { esForm(null); }
+async function esForm(id) {
+  const it = id ? esAchar(id) : { data: ES.dia || esHojeIso(), tipo: 'Preventiva mensal' };
+  let cad = { pats: {}, empresas: {}, tecnicos: [], lideres: {} };
+  try { cad = await esCadastros(); } catch (e) {}
+  const opt = (arr) => arr.map(v => `<option value="${escHtml(v)}">`).join('');
+  document.getElementById('es-modal-box').innerHTML = `
+    <div class="card-title" style="font-size:16px">${id ? 'Editar atendimento' : 'Novo atendimento'}</div>
+    <input type="hidden" id="es-p-id" value="${id || ''}">
+    <datalist id="es-dl-emp">${opt(Object.keys(cad.empresas).sort())}</datalist>
+    <datalist id="es-dl-tec">${opt(cad.tecnicos)}</datalist>
+    <datalist id="es-dl-pat">${opt(Object.keys(cad.pats).sort())}</datalist>
+    <div class="diag-grid" style="margin:12px 0 0">
+      <div><label>Data</label><input type="date" id="es-p-data" value="${it.data || ''}"></div>
+      <div><label>Nº Patrimônio</label><input type="text" id="es-p-pat" list="es-dl-pat" value="${escHtml(it.pat || '')}" onchange="esPatAuto()"></div>
+      <div class="diag-full" style="grid-column:1/-1"><label>Cliente</label><input type="text" id="es-p-emp" list="es-dl-emp" value="${escHtml(it.empresa || '')}" onchange="esEmpAuto()"></div>
+      <div><label>Cidade</label><input type="text" id="es-p-cid" value="${escHtml(it.cidade || '')}"></div>
+      <div><label>Equipamento</label><input type="text" id="es-p-eqp" value="${escHtml(it.equipamento || '')}"></div>
+      <div><label>Técnico líder</label><input type="text" id="es-p-lid" list="es-dl-tec" value="${escHtml(it.lider || '')}" onchange="esLidAuto()"></div>
+      <div><label>Técnico executor</label><input type="text" id="es-p-exe" list="es-dl-tec" value="${escHtml(it.executor || '')}"></div>
+      <div><label>Equipe</label><input type="text" id="es-p-eq" value="${escHtml(it.equipe || '')}"></div>
+      <div><label>Tipo de serviço</label><input type="text" id="es-p-tipo" value="${escHtml(it.tipo || '')}"></div>
+      <div style="grid-column:1/-1"><label>Observação</label><input type="text" id="es-p-obs" value="${escHtml(it.obs || '')}"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button class="btn btn-primary" style="flex:1" onclick="esSalvarProg(this)">Salvar</button><button class="btn btn-ghost" onclick="esFechar()">Cancelar</button>${id ? `<button class="btn btn-danger" onclick="esExcluir('${id}',this)">Excluir</button>` : ''}</div>
+    <div id="es-p-msg" style="margin-top:8px;font-size:12.5px;color:#b91c1c"></div>`;
+  document.getElementById('es-modal').style.display = 'flex';
+}
+function esPatAuto() {
+  const p = (ES_CAD || {}).pats || {}; const r = p[document.getElementById('es-p-pat').value.trim()]; if (!r) return;
+  const set = (i, v) => { const e = document.getElementById(i); if (!e.value && v) e.value = v; };
+  set('es-p-emp', r.empresa); set('es-p-cid', r.cidade); set('es-p-eqp', r.equipamento);
+}
+function esEmpAuto() { const c = ((ES_CAD || {}).empresas || {})[document.getElementById('es-p-emp').value.trim()]; const e = document.getElementById('es-p-cid'); if (c && !e.value) e.value = c; }
+function esLidAuto() { const q = ((ES_CAD || {}).lideres || {})[document.getElementById('es-p-lid').value.trim()]; const e = document.getElementById('es-p-eq'); if (q && !e.value) e.value = q; }
+async function esSalvarProg(b) {
+  const g = i => document.getElementById(i).value.trim();
+  const corpo = { id: g('es-p-id'), data: g('es-p-data'), pat: g('es-p-pat'), empresa: g('es-p-emp'), cidade: g('es-p-cid'), equipamento: g('es-p-eqp'),
+    lider: g('es-p-lid'), executor: g('es-p-exe'), equipe: g('es-p-eq'), tipo: g('es-p-tipo'), obs: g('es-p-obs') };
+  b.disabled = true;
+  try { await api('salvar_escala', null, corpo); ES_CAD = null; ES.dia = corpo.data; const [y, m] = corpo.data.split('-').map(Number); ES.ano = y; ES.mes = m - 1; esFechar(); await esCarregar(); }
+  catch (e) { document.getElementById('es-p-msg').textContent = '⚠️ ' + e.message; }
+  b.disabled = false;
+}
+async function esExcluir(id, b) {
+  if (!confirm('Excluir esse atendimento da escala? Ele some para todos.')) return;
+  b.disabled = true;
+  try { await api('excluir_escala', null, { id }); esFechar(); await esCarregar(); } catch (e) { alert(e.message); b.disabled = false; }
+}
+
+// ---------- exportar a escala do mês para Excel (cópia) ----------
+async function esExportar(b) {
+  b.disabled = true;
+  try {
+    const de = new Date(ES.ano, ES.mes, 1);
+    const linhas = ES.itens.slice().sort((x, y) => x.data.localeCompare(y.data) || String(x.equipe).localeCompare(String(y.equipe))).map(i => {
+      const [yy, mm, dd] = i.data.split('-').map(Number);
+      return { 'Equipe': i.equipe || '', 'Data': esBr(i.data), 'Dia': ES_DOW[(new Date(yy, mm - 1, dd).getDay() + 6) % 7], 'Empresa / Cliente': i.empresa || '', 'Cidade': i.cidade || '',
+        'Nº Patrimônio': i.pat || '', 'Equipamento': i.equipamento || '', 'Técnico líder': i.lider || '', 'Técnico executor': i.executor || '', 'Tipo de serviço': i.tipo || '',
+        'Status': esRotulo(esSit(i)), 'Data realizada': esBr(i.data_realizada), 'Nº Relatório': i.relatorio || '', 'Horímetro': i.horimetro || '', 'Observações': i.obs || '',
+        'Data original': i.data_original ? esBr(i.data_original) : '', 'Última alteração': i.atualizado_por || '' };
+    });
+    if (!linhas.length) { alert('Nenhum atendimento neste mês.'); b.disabled = false; return; }
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    ws['!cols'] = [7, 11, 6, 42, 16, 13, 20, 18, 18, 18, 18, 13, 12, 10, 40, 12, 26].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ESCALA');
+    XLSX.writeFile(wb, `Escala_${esIso(de).slice(0, 7)}.xlsx`);
+  } catch (e) { alert(e.message); }
+  b.disabled = false;
+}
+
+// ---------- importação (admin) ----------
+function esLerEscala(wb) {
+  const nome = wb.SheetNames.find(n => esNorm(n) === 'escala') || wb.SheetNames.find(n => esNorm(n).includes('escala'));
+  if (!nome) throw new Error('Não achei a aba ESCALA no arquivo.');
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[nome], { header: 1, raw: true, defval: '' });
+  let hi = -1;
+  for (let i = 0; i < Math.min(raw.length, 20); i++) {
+    const l = (raw[i] || []).map(esNorm);
+    if (l.includes('data') && l.some(c => c.includes('patrimonio'))) { hi = i; break; }
+  }
+  if (hi < 0) throw new Error('Não achei o cabeçalho da aba ESCALA (colunas Data e Nº Patrimônio).');
+  const cab = raw[hi].map(esNorm);
+  const col = f => cab.findIndex(f);
+  const C = {
+    equipe: col(c => c === 'equipe'), data: col(c => c === 'data'), empresa: col(c => c.startsWith('empresa')), cidade: col(c => c === 'cidade'),
+    pat: col(c => c.includes('patrimonio')), equipamento: col(c => c === 'equipamento'), lider: col(c => c.includes('lider')), executor: col(c => c.includes('executor')),
+    tipo: col(c => c.includes('tipo')), status: col(c => c === 'status'), data_realizada: col(c => c.includes('realizada')), relatorio: col(c => c.includes('relatorio')),
+    horimetro: col(c => c.includes('horimetro')), obs: col(c => c.startsWith('observ'))
+  };
+  const dt = v => {
+    if (v === '' || v == null) return null;
+    if (typeof v === 'number') { const p = XLSX.SSF.parse_date_code(v); return p ? `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}` : null; }
+    const m = String(v).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    const n = String(v).match(/(\d{4})-(\d{2})-(\d{2})/); return n ? n[0] : null;
+  };
+  const tx = (l, k) => C[k] >= 0 ? String(l[C[k]] == null ? '' : l[C[k]]).trim() : '';
+  const vistos = {}; const linhas = [];
+  raw.slice(hi + 1).forEach((l, k) => {
+    const data = dt(l[C.data]); const pat = tx(l, 'pat'); const empresa = tx(l, 'empresa');
+    if (!data || (!pat && !empresa)) return;
+    let chave = esNorm(pat) + '|' + data + '|' + esNorm(empresa);
+    vistos[chave] = (vistos[chave] || 0) + 1; if (vistos[chave] > 1) chave += '#' + vistos[chave];
+    let status = tx(l, 'status') || 'Programada';
+    linhas.push({ chave, linha: hi + k + 2, data, equipe: tx(l, 'equipe'), empresa, cidade: tx(l, 'cidade'), pat, equipamento: tx(l, 'equipamento'),
+      lider: tx(l, 'lider'), executor: tx(l, 'executor'), tipo: tx(l, 'tipo'), status, data_realizada: C.data_realizada >= 0 ? dt(l[C.data_realizada]) : null,
+      horimetro: tx(l, 'horimetro'), relatorio: tx(l, 'relatorio'), obs: tx(l, 'obs') });
+  });
+  return linhas;
+}
+async function esImportar() {
+  const st = document.getElementById('es-imp-status');
+  if (!getAdminCode()) { st.textContent = '⚠️ Entre com o código de administrador para importar a escala.'; return; }
+  if (!(getConfig().nome || '').trim()) { alert('Coloque seu nome em Configurações antes de inserir dados.'); showScreen('config'); return; }
+  const arq = document.getElementById('es-imp-arq').files[0];
+  if (!arq) { st.textContent = '⚠️ Escolha o arquivo ESCALA.xlsx.'; return; }
+  try {
+    st.textContent = 'Lendo planilha…';
+    const linhas = esLerEscala(XLSX.read(await arq.arrayBuffer(), { type: 'array' }));
+    if (!linhas.length) throw new Error('Nenhum atendimento encontrado na aba ESCALA.');
+    const ds = linhas.map(l => l.data).sort();
+    if (!confirm(`${linhas.length} atendimentos na planilha, de ${esBr(ds[0])} a ${esBr(ds[ds.length - 1])}. Só os que ainda não existem no app serão incluídos. Continuar?`)) { st.textContent = 'Importação cancelada.'; return; }
+    st.textContent = 'Enviando…';
+    const r = await api('importar_escala', null, { linhas });
+    st.textContent = `✓ ${r.novos} atendimento(s) novo(s) incluído(s). ${r.ignorados} já existiam no app e não foram alterados.`;
+    document.getElementById('es-imp-arq').value = '';
   } catch (e) { st.textContent = '⚠️ ' + e.message; }
 }
 
