@@ -49,7 +49,7 @@ function filtroAnd(campo, ts) {
 
 // lista completa da escala, paginando de 1000 em 1000
 async function escalaTodos(filtro) {
-  const cols = 'id,chave,linha,data,data_original,equipe,empresa,cidade,pat,equipamento,lider,executor,tipo,status,data_realizada,horimetro,relatorio,obs,atualizado_por,atualizado_em';
+  const cols = 'id,chave,linha,data,data_original,data_sugerida,equipe,empresa,cidade,pat,equipamento,lider,executor,tipo,status,data_realizada,horimetro,relatorio,obs,atualizado_por,atualizado_em';
   const temSelect = /(^|&)select=/.test(filtro);
   let out = [];
   for (let ini = 0; ; ini += 1000) {
@@ -235,10 +235,13 @@ export default async function handler(req, res) {
         const row = { atualizado_em: new Date().toISOString(), atualizado_por: autor || null, obs: String(b.obs || '').slice(0, 500) || null };
         if (st === 'Realizada') {
           if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.data_realizada || ''))) throw new Error('Informe a data em que foi feita.');
-          Object.assign(row, { status: 'Realizada', data_realizada: b.data_realizada, horimetro: String(b.horimetro || '').slice(0, 30) || null, relatorio: String(b.relatorio || '').slice(0, 30) || null });
+          Object.assign(row, { status: 'Realizada', data_sugerida: null, data_realizada: b.data_realizada, horimetro: String(b.horimetro || '').slice(0, 30) || null, relatorio: String(b.relatorio || '').slice(0, 30) || null });
         } else if (st === 'Não realizada') {
           if (!row.obs) throw new Error('Informe o motivo.');
-          Object.assign(row, { status: 'Não realizada', data_realizada: null });
+          const sug = String(b.data_sugerida || '');
+          if (sug && !/^\d{4}-\d{2}-\d{2}$/.test(sug)) throw new Error('Data sugerida inválida.');
+          if (sug && sug < new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10)) throw new Error('A data sugerida não pode ser no passado.');
+          Object.assign(row, { status: 'Não realizada', data_realizada: null, data_sugerida: sug || null });
         } else throw new Error('Status inválido.');
         await rest(`escala_preventivas?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(row) });
         res.json({ ok: true }); return;
@@ -249,7 +252,7 @@ export default async function handler(req, res) {
         if (!atual) throw new Error('Atendimento não encontrado.');
         const st = String(b.status || '');
         if (!['Pendente execução', 'Cancelada', 'Programada'].includes(st)) throw new Error('Decisão inválida.');
-        const row = { status: st, atualizado_em: new Date().toISOString(), atualizado_por: (autor || 'Coordenação') + ' (coordenação)' };
+        const row = { status: st, data_sugerida: null, atualizado_em: new Date().toISOString(), atualizado_por: (autor || 'Coordenação') + ' (coordenação)' };
         if (st !== 'Cancelada' && st !== 'Programada') row.data_realizada = null;
         if (st === 'Programada') row.data_realizada = null;
         if (b.obs !== undefined && String(b.obs).trim()) row.obs = String(b.obs).slice(0, 500);
