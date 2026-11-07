@@ -2358,7 +2358,7 @@ async function entrarAdmin() {
 }
 function sairAdmin() { localStorage.removeItem('mov_admin_code'); renderAdmin(); }
 async function renderAdmin() {
-  const logado = !!getApiKey();
+  const logado = !!getApiKey() || !!getAdminCode();
   document.getElementById('adm-login').style.display = logado ? 'none' : '';
   document.getElementById('adm-painel').style.display = logado ? '' : 'none';
   if (!logado) return;
@@ -3131,7 +3131,12 @@ function abrirLogin(modo) {
   const bg = document.getElementById('login-bg');
   const temCodigo = !!localStorage.getItem('mov_access_code');
   let h;
-  if (modo === 'trocar') {
+  if (modo === 'admin') {
+    h = `<div style="text-align:center;margin-bottom:14px"><div class="card-title" style="font-size:18px">Entrar como coordenação</div><div class="card-sub">Use o código de administrador (MOV_ADMIN_CODE) para criar os primeiros logins.</div></div>
+      <label>Código de administrador</label><input type="password" id="lg-adm" onkeydown="if(event.key==='Enter')entrarComAdmin(this)">
+      <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="entrarComAdmin(this)">Entrar</button>
+      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="abrirLogin()">Voltar</button>`;
+  } else if (modo === 'trocar') {
     const u = getUsuario() || {};
     h = `<div class="card-title" style="font-size:18px">Troque sua senha</div>
       <div class="card-sub" style="margin:4px 0 14px">${escHtml(u.nome || '')}, no primeiro acesso a senha provisória precisa ser trocada por uma só sua.</div>
@@ -3146,11 +3151,25 @@ function abrirLogin(modo) {
       <label style="margin-top:10px;display:block">Senha</label><input type="password" id="lg-senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')fazerLogin(this)">
       <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="fazerLogin(this)">Entrar</button>
       ${temCodigo ? '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="fecharLogin()">Continuar com o código de acesso (provisório)</button>'
-        : '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="fecharLogin();showScreen(\'config\')">Ainda não tenho login: usar código de acesso</button>'}`;
+        : '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="fecharLogin();showScreen(\'config\')">Ainda não tenho login: usar código de acesso</button>'}
+      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:4px" onclick="abrirLogin('admin')">Sou coordenação: entrar com código de administrador</button>`;
   }
   document.getElementById('login-box').innerHTML = h + '<div id="lg-msg" style="margin-top:10px;font-size:12.5px;color:#b91c1c;text-align:center"></div>';
   bg.style.display = 'flex';
-  setTimeout(() => { const f = document.getElementById(modo === 'trocar' ? 'lg-atual' : 'lg-login'); if (f) f.focus(); }, 50);
+  setTimeout(() => { const f = document.getElementById(modo === 'trocar' ? 'lg-atual' : modo === 'admin' ? 'lg-adm' : 'lg-login'); if (f) f.focus(); }, 50);
+}
+async function entrarComAdmin(b) {
+  const c = document.getElementById('lg-adm').value.trim(); const msg = document.getElementById('lg-msg');
+  if (!c) { msg.textContent = 'Digite o código.'; return; }
+  b.disabled = true;
+  localStorage.setItem('mov_admin_code', c);
+  try {
+    const r = await fetch('/api/dados?acao=verificar_admin', { headers: { 'x-mov-admin': c } });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(r.status === 500 ? (d.erro || 'Servidor sem configuração.') : 'Código de administrador incorreto. Confira a MOV_ADMIN_CODE na Vercel e se foi feito o Redeploy.');
+    fecharLogin(); atualizarMenu(); showScreen('usuarios');
+  } catch (e) { localStorage.removeItem('mov_admin_code'); msg.textContent = '⚠️ ' + e.message; }
+  b.disabled = false;
 }
 function fecharLogin() { document.getElementById('login-bg').style.display = 'none'; }
 async function fazerLogin(b) {
@@ -3301,7 +3320,7 @@ async function usrCriarEscala(nomes) {
 // ============================================================
 // ATUALIZAÇÃO AUTOMÁTICA (dados e versão do app)
 // ============================================================
-const APP_VERSAO = '2026-11-04b';
+const APP_VERSAO = '2026-11-07a';
 function telaAtiva() { const t = document.querySelector('.screen.active'); return t ? t.id.replace('screen-', '') : ''; }
 function modalAberto() {
   const v = document.getElementById('viewer');
