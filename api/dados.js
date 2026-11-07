@@ -102,9 +102,9 @@ export default async function handler(req, res) {
   if (acao === 'login') {
     try {
       const login = normLogin(b.login);
-      const u = login ? (await rest(`usuarios?select=id,login,nome,perfil,senha_hash,trocar_senha,ativo&login=eq.${encodeURIComponent(login)}`))[0] : null;
+      const u = login ? (await rest(`mov_usuarios?select=id,login,nome,perfil,senha_hash,trocar_senha,ativo&login=eq.${encodeURIComponent(login)}`))[0] : null;
       if (!u || !u.ativo || !confereSenha(b.senha, u.senha_hash)) { res.status(401).json({ erro: 'Usuário ou senha incorretos.' }); return; }
-      await rest(`usuarios?id=eq.${u.id}`, { method: 'PATCH', body: JSON.stringify({ ultimo_acesso: new Date().toISOString() }) });
+      await rest(`mov_usuarios?id=eq.${u.id}`, { method: 'PATCH', body: JSON.stringify({ ultimo_acesso: new Date().toISOString() }) });
       const token = assinar({ u: u.id, exp: Date.now() + 30 * 24 * 3600 * 1000 });
       res.json({ token, usuario: { login: u.login, nome: u.nome, perfil: u.perfil, trocar_senha: !!u.trocar_senha } });
     } catch (e) { res.status(500).json({ erro: e.message }); }
@@ -116,7 +116,7 @@ export default async function handler(req, res) {
   const tok = req.headers['x-mov-token'] || '';
   if (tok) {
     const d = lerToken(tok);
-    if (d) { try { usuario = (await rest(`usuarios?select=id,login,nome,perfil,trocar_senha,ativo&id=eq.${String(d.u).replace(/[^0-9a-f\-]/gi, '')}`))[0] || null; } catch (e) {} }
+    if (d) { try { usuario = (await rest(`mov_usuarios?select=id,login,nome,perfil,trocar_senha,ativo&id=eq.${String(d.u).replace(/[^0-9a-f\-]/gi, '')}`))[0] || null; } catch (e) {} }
     if (!usuario || !usuario.ativo) { res.status(401).json({ erro: 'Sua sessão expirou. Entre de novo com usuário e senha.', sessao: true }); return; }
   }
   const codigo = req.headers['x-mov-code'] || '';
@@ -137,17 +137,17 @@ export default async function handler(req, res) {
 
       case 'trocar_senha': {
         if (!usuario) throw new Error('Entre com seu usuário primeiro.');
-        const u = (await rest(`usuarios?select=id,senha_hash&id=eq.${usuario.id}`))[0];
+        const u = (await rest(`mov_usuarios?select=id,senha_hash&id=eq.${usuario.id}`))[0];
         if (!confereSenha(b.atual, u.senha_hash)) throw new Error('Senha atual incorreta.');
         const nova = String(b.nova || '');
         if (nova.length < 6) throw new Error('A nova senha precisa ter pelo menos 6 caracteres.');
         if (nova === String(b.atual)) throw new Error('A nova senha precisa ser diferente da provisória.');
-        await rest(`usuarios?id=eq.${usuario.id}`, { method: 'PATCH', body: JSON.stringify({ senha_hash: hashSenha(nova), trocar_senha: false }) });
+        await rest(`mov_usuarios?id=eq.${usuario.id}`, { method: 'PATCH', body: JSON.stringify({ senha_hash: hashSenha(nova), trocar_senha: false }) });
         res.json({ ok: true }); return;
       }
 
       case 'usuarios': {
-        const d = await rest('usuarios?select=id,login,nome,perfil,trocar_senha,ativo,ultimo_acesso,criado_em&order=perfil.asc,nome.asc');
+        const d = await rest('mov_usuarios?select=id,login,nome,perfil,trocar_senha,ativo,ultimo_acesso,criado_em&order=perfil.asc,nome.asc');
         res.json({ usuarios: d }); return;
       }
       case 'salvar_usuario': {
@@ -159,16 +159,16 @@ export default async function handler(req, res) {
         const id = String(b.id || '').replace(/[^0-9a-f\-]/gi, '');
         const row = { login, nome, perfil };
         if (senha) { if (senha.length < 6) throw new Error('Senha provisória com pelo menos 6 caracteres.'); row.senha_hash = hashSenha(senha); row.trocar_senha = true; }
-        const dup = await rest(`usuarios?select=id&login=eq.${encodeURIComponent(login)}`);
+        const dup = await rest(`mov_usuarios?select=id&login=eq.${encodeURIComponent(login)}`);
         if (dup.length && dup[0].id !== id) throw new Error('Já existe um usuário com o login ' + login + '.');
-        if (id) await rest(`usuarios?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(row) });
-        else { if (!senha) throw new Error('Defina a senha provisória.'); row.ativo = true; await rest('usuarios', { method: 'POST', body: JSON.stringify(row) }); }
+        if (id) await rest(`mov_usuarios?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(row) });
+        else { if (!senha) throw new Error('Defina a senha provisória.'); row.ativo = true; await rest('mov_usuarios', { method: 'POST', body: JSON.stringify(row) }); }
         res.json({ ok: true }); return;
       }
       case 'status_usuario': {
         const id = String(b.id || '').replace(/[^0-9a-f\-]/gi, '');
         if (usuario && usuario.id === id) throw new Error('Você não pode desativar o próprio usuário.');
-        await rest(`usuarios?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ ativo: !!b.ativo }) });
+        await rest(`mov_usuarios?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ ativo: !!b.ativo }) });
         res.json({ ok: true }); return;
       }
 
