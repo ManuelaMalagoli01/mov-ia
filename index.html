@@ -431,10 +431,6 @@ select{width:100%;}
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/></svg>
         Buscar
       </div>
-      <div class="nav-item" onclick="showScreen('pecas')">
-        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"/></svg>
-        Peças e Códigos
-      </div>
       <div class="nav-item" onclick="showScreen('catalogos')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6.25v13M12 6.25C10.8 5.45 9.2 5 7.5 5S4.2 5.45 3 6.25v13C4.2 18.45 5.8 18 7.5 18s3.3.45 4.5 1.25m0-13C13.2 5.45 14.8 5 16.5 5s3.3.45 4.5 1.25v13C19.8 18.45 18.2 18 16.5 18s-3.3.45-4.5 1.25"/></svg>
         Catálogos
@@ -466,6 +462,10 @@ select{width:100%;}
       <div class="nav-item" onclick="showScreen('admin')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 8l-4-4m0 0L8 8m4-4v12"/></svg>
         Inserir Dados
+      </div>
+      <div class="nav-item" id="nav-usuarios" style="display:none" onclick="showScreen('usuarios')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H2v-2a4 4 0 015-3.87m6-4.13a4 4 0 11-8 0 4 4 0 018 0zm6 2a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Usuários e senhas
       </div>
       <div class="nav-item" onclick="showScreen('base')">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16"/></svg>
@@ -518,6 +518,11 @@ select{width:100%;}
         <div id="pc-res"></div>
       </div>
 
+      <!-- USUÁRIOS -->
+      <div class="screen" id="screen-usuarios">
+        <div class="card" id="adm-usuarios"></div>
+      </div>
+
       <!-- ESCALA -->
       <div class="screen" id="screen-escala">
         <div class="card" style="margin-bottom:16px">
@@ -537,7 +542,7 @@ select{width:100%;}
       </div>
       <div id="nova-versao" onclick="location.reload()" style="display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:250;background:#1A1A1A;color:#fff;padding:10px 18px;border-radius:24px;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25)">Nova versão do app disponível. Toque para atualizar.</div>
       <div id="login-bg" class="es-modal-bg" style="display:none;z-index:300;background:rgba(20,20,20,.75)"><div class="es-modal" id="login-box" style="max-width:400px"></div></div>
-      <div id="es-modal" class="es-modal-bg" style="display:none" onclick="if(event.target===this)esFechar()"><div class="es-modal" id="es-modal-box"></div></div>
+      <div id="es-modal" class="es-modal-bg" style="display:none" onclick="if(event.target===this && !ACESSOS.length)esFechar()"><div class="es-modal" id="es-modal-box"></div></div>
 
       <!-- PLANO PREVENTIVA -->
       <div class="screen" id="screen-plano">
@@ -593,7 +598,6 @@ select{width:100%;}
         </div>
         <div id="adm-painel" style="display:none">
           <div class="card" style="margin-bottom:14px" id="adm-box"></div>
-          <div class="card" style="margin-bottom:14px;display:none" id="adm-usuarios"></div>
           <div class="alert alert-warn" style="margin-bottom:14px;display:flex"><span id="adm-quem"></span></div>
           <div class="adm-grid">
             <div class="card">
@@ -1090,6 +1094,7 @@ const TITLES = {
   diagnostico: 'Consulta de Falha',
   plano: 'Plano de Preventiva por Máquina',
   escala: 'Escala de Preventivas',
+  usuarios: 'Usuários e senhas',
   pecas: 'Peças e Códigos',
   preventiva: 'Manutenção Preventiva',
   historico: 'Histórico de Diagnósticos',
@@ -1173,7 +1178,8 @@ function showScreen(name) {
   if (name === 'exportar') loadExportStats();
   if (name === 'catalogos') renderCatalogos();
   if (name === 'planilhas' && !arguments[1]) renderPlanilhas();
-  if (name === 'admin') { renderAdmin(); renderAdmBox(); renderUsuarios(); }
+  if (name === 'admin') { renderAdmin(); renderAdmBox(); }
+  if (name === 'usuarios') renderUsuarios();
   if (name === 'plano') renderPlano();
   if (name === 'escala') renderEscala();
   if (name === 'pecas') setTimeout(() => { if (window.innerWidth > 768) document.getElementById('pc-q').focus(); }, 50);
@@ -3175,7 +3181,11 @@ async function trocarSenha(b) {
   } catch (e) { msg.textContent = '⚠️ ' + e.message; }
   b.disabled = false;
 }
+function atualizarMenu() {
+  const n = document.getElementById('nav-usuarios'); if (n) n.style.display = esEhAdmin() ? '' : 'none';
+}
 function mostrarConta() {
+  atualizarMenu();
   const el = document.getElementById('conta-box'); if (!el) return;
   const u = getUsuario();
   el.innerHTML = u ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><div class="card-title">👤 ${escHtml(u.nome)}</div><div class="card-sub">Usuário ${escHtml(u.login)} · ${u.perfil === 'coordenacao' ? 'Coordenação' : 'Técnico'}</div></div>
@@ -3198,19 +3208,49 @@ let USR = [];
 function sugerirLogin(nome) { const p = esNorm(nome).replace(/[^a-z ]/g, '').split(/\s+/).filter(Boolean); return p.length > 1 ? p[0] + '.' + p[p.length - 1] : (p[0] || ''); }
 async function renderUsuarios() {
   const el = document.getElementById('adm-usuarios'); if (!el) return;
-  if (!esEhAdmin()) { el.style.display = 'none'; return; }
-  el.style.display = '';
+  if (!esEhAdmin()) { el.innerHTML = '<div class="card-title">👥 Usuários e senhas</div><div class="vazio-sm">Somente coordenação. Entre com seu login de coordenação, ou com o código de administrador em Inserir Dados.</div>'; return; }
   el.innerHTML = '<div class="card-title">👥 Usuários</div><div class="vazio-sm">Carregando…</div>';
   try {
     USR = (await api('usuarios')).usuarios || [];
     let faltam = [];
     try { const c = await api('escala_cadastros'); const ja = new Set(USR.map(u => esNorm(u.nome))); faltam = c.tecnicos.filter(n => !ja.has(esNorm(n))); } catch (e) {}
     const lin = USR.map(u => `<div class="adm-linha"><div><strong>${escHtml(u.nome)}</strong><span>${escHtml(u.login)} · ${u.perfil === 'coordenacao' ? 'Coordenação' : 'Técnico'}${u.ativo ? '' : ' · DESATIVADO'}${u.trocar_senha ? ' · aguardando 1º acesso' : ''}${u.ultimo_acesso ? ' · último acesso ' + new Date(u.ultimo_acesso).toLocaleDateString('pt-BR') : ''}</span></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="usrForm('${u.id}')">Editar / nova senha</button><button class="btn ${u.ativo ? 'btn-danger' : 'btn-ghost'} btn-sm" onclick="usrAtivo('${u.id}',${!u.ativo},this)">${u.ativo ? 'Desativar' : 'Reativar'}</button></div></div>`).join('');
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="usrNovaSenha('${u.id}',this)">🔑 Gerar nova senha</button><button class="btn btn-ghost btn-sm" onclick="usrForm('${u.id}')">Editar</button><button class="btn ${u.ativo ? 'btn-danger' : 'btn-ghost'} btn-sm" onclick="usrAtivo('${u.id}',${!u.ativo},this)">${u.ativo ? 'Desativar' : 'Reativar'}</button></div></div>`).join('');
     el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div><div class="card-title">👥 Usuários</div><div class="card-sub">Cada pessoa entra com o próprio login. O nome precisa ser igual ao da escala.</div></div><button class="btn btn-primary btn-sm" onclick="usrForm()">+ Novo usuário</button></div>
-      ${faltam.length ? `<div class="alert alert-warn" style="margin-top:12px;display:block"><div><strong>${faltam.length} técnico(s) da escala sem login:</strong> ${faltam.map(escHtml).join(', ')}</div><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick='usrCriarEscala(${JSON.stringify(faltam).replace(/'/g, "&#39;")})'>Criar logins para eles</button></div>` : ''}
+      ${faltam.length ? `<div class="alert alert-warn" style="margin-top:12px;display:block"><div><strong>${faltam.length} técnico(s) da escala sem login:</strong> ${faltam.map(escHtml).join(', ')}</div><button class="btn btn-primary btn-sm" style="margin-top:8px" onclick='usrCriarEscala(${JSON.stringify(faltam).replace(/'/g, "&#39;")})'>Gerar login e senha para eles</button></div>` : ''}
       <div style="margin-top:10px">${lin || '<div class="vazio-sm">Nenhum usuário ainda.</div>'}</div>`;
   } catch (e) { el.innerHTML = '<div class="card-title">👥 Usuários</div><div class="vazio-sm">⚠️ ' + escHtml(e.message) + '</div>'; }
+}
+function gerarSenha() {
+  const c = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const r = new Uint32Array(8); crypto.getRandomValues(r);
+  return Array.from(r, x => c[x % c.length]).join('');
+}
+function sugerirLoginNorm(t) { return String(t || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9._-]/g, ''); }
+let ACESSOS = [];
+function textoAcesso(a) {
+  return `Olá, ${a.nome.split(' ')[0]}! Seu acesso ao MOV IA:\nEndereço: ${location.origin}\nUsuário: ${a.login}\nSenha provisória: ${a.senha}\nNo primeiro acesso o app vai pedir para você criar sua própria senha.`;
+}
+function mostrarAcessos(lista, erros) {
+  ACESSOS = lista;
+  const cards = lista.map((a, i) => `<div class="es-item"><div class="es-item-top"><div><strong>${escHtml(a.nome)}</strong><div class="es-meta">Usuário: <b>${escHtml(a.login)}</b> · Senha provisória: <b style="font-family:monospace;font-size:14px">${escHtml(a.senha)}</b></div></div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="copiarAcesso(${i},this)">Copiar mensagem</button><a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(textoAcesso(a))}">Enviar no WhatsApp</a></div></div>`).join('');
+  document.getElementById('es-modal-box').innerHTML = `<div class="card-title" style="font-size:16px">🔑 Acesso${lista.length > 1 ? 's' : ''} gerado${lista.length > 1 ? 's' : ''}</div>
+    <div class="card-sub" style="margin:4px 0 6px">Anote ou envie agora. Depois de fechar esta janela a senha não aparece de novo (fica guardada criptografada). Se perder, é só gerar outra.</div>
+    ${cards}${erros && erros.length ? `<div class="es-meta" style="color:#b91c1c;margin-top:10px">Não criados: ${escHtml(erros.join('; '))}</div>` : ''}
+    <div style="display:flex;gap:8px;margin-top:16px">${lista.length > 1 ? '<button class="btn btn-ghost" onclick="copiarAcesso(-1,this)">Copiar todos</button>' : ''}<button class="btn btn-primary" style="flex:1" onclick="ACESSOS=[];esFechar()">Concluído</button></div>`;
+  document.getElementById('es-modal').style.display = 'flex';
+}
+async function copiarAcesso(i, b) {
+  const t = i < 0 ? ACESSOS.map(textoAcesso).join('\n\n') : textoAcesso(ACESSOS[i]);
+  try { await navigator.clipboard.writeText(t); b.textContent = '✓ Copiado'; } catch (e) { prompt('Copie o texto:', t); }
+}
+async function usrNovaSenha(id, b) {
+  const u = USR.find(x => x.id === id); if (!u) return;
+  if (!confirm(`Gerar nova senha provisória para ${u.nome}? A senha atual dele deixa de funcionar.`)) return;
+  const senha = gerarSenha(); b.disabled = true;
+  try { await api('salvar_usuario', null, { id: u.id, nome: u.nome, login: u.login, perfil: u.perfil, senha }); renderUsuarios(); mostrarAcessos([{ nome: u.nome, login: u.login, senha }]); }
+  catch (e) { alert(e.message); b.disabled = false; }
 }
 function usrForm(id) {
   const u = id ? USR.find(x => x.id === id) : { perfil: 'tecnico' };
@@ -3220,7 +3260,7 @@ function usrForm(id) {
       <div style="grid-column:1/-1"><label>Nome (igual ao da escala)</label><input type="text" id="us-nome" value="${escHtml(u.nome || '')}" onchange="if(!document.getElementById('us-login').value)document.getElementById('us-login').value=sugerirLogin(this.value)"></div>
       <div><label>Usuário (login)</label><input type="text" id="us-login" autocapitalize="none" value="${escHtml(u.login || '')}"></div>
       <div><label>Perfil</label><select id="us-perfil"><option value="tecnico" ${u.perfil === 'tecnico' ? 'selected' : ''}>Técnico</option><option value="coordenacao" ${u.perfil === 'coordenacao' ? 'selected' : ''}>Coordenação</option></select></div>
-      <div style="grid-column:1/-1"><label>${id ? 'Nova senha provisória (deixe vazio para manter)' : 'Senha provisória'}</label><input type="text" id="us-senha" autocomplete="off"><div class="card-sub" style="margin-top:4px">Mínimo 6 caracteres. A pessoa troca no primeiro acesso.</div></div>
+      <div style="grid-column:1/-1"><label>${id ? 'Nova senha provisória (deixe vazio para manter)' : 'Senha provisória'}</label><div style="display:flex;gap:8px"><input type="text" id="us-senha" autocomplete="off" style="flex:1" value="${id ? '' : gerarSenha()}"><button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('us-senha').value=gerarSenha()">🔑 Gerar</button></div><div class="card-sub" style="margin-top:4px">Mínimo 6 caracteres. A pessoa troca no primeiro acesso.</div></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:16px"><button class="btn btn-primary" style="flex:1" onclick="usrSalvar(this)">Salvar</button><button class="btn btn-ghost" onclick="esFechar()">Cancelar</button></div>
     <div id="us-msg" style="margin-top:8px;font-size:12.5px;color:#b91c1c"></div>`;
@@ -3229,7 +3269,12 @@ function usrForm(id) {
 async function usrSalvar(b) {
   const g = i => document.getElementById(i).value.trim();
   b.disabled = true;
-  try { await api('salvar_usuario', null, { id: g('us-id'), nome: g('us-nome'), login: g('us-login'), perfil: g('us-perfil'), senha: g('us-senha') }); esFechar(); renderUsuarios(); }
+  try {
+    const dados = { id: g('us-id'), nome: g('us-nome'), login: g('us-login'), perfil: g('us-perfil'), senha: g('us-senha') };
+    await api('salvar_usuario', null, dados);
+    renderUsuarios();
+    if (dados.senha) mostrarAcessos([{ nome: dados.nome, login: sugerirLoginNorm(dados.login), senha: dados.senha }]); else esFechar();
+  }
   catch (e) { document.getElementById('us-msg').textContent = '⚠️ ' + e.message; }
   b.disabled = false;
 }
@@ -3239,25 +3284,24 @@ async function usrAtivo(id, ativo, b) {
   try { await api('status_usuario', null, { id, ativo }); renderUsuarios(); } catch (e) { alert(e.message); b.disabled = false; }
 }
 async function usrCriarEscala(nomes) {
-  const senha = prompt(`Senha provisória para os ${nomes.length} técnicos (mínimo 6 caracteres). Cada um troca no primeiro acesso:`);
-  if (!senha) return;
-  if (senha.length < 6) { alert('A senha provisória precisa ter pelo menos 6 caracteres.'); return; }
+  if (!confirm(`Gerar login e uma senha provisória diferente para ${nomes.length} técnico(s)?`)) return;
   const usados = new Set(USR.map(u => u.login)); const feitos = [], erros = [];
   for (const nome of nomes) {
     let login = sugerirLogin(nome), n = 2; while (usados.has(login)) login = sugerirLogin(nome) + n++;
     usados.add(login);
-    try { await api('salvar_usuario', null, { nome, login, perfil: 'tecnico', senha }); feitos.push(nome + ': ' + login); }
+    const senha = gerarSenha();
+    try { await api('salvar_usuario', null, { nome, login, perfil: 'tecnico', senha }); feitos.push({ nome, login, senha }); }
     catch (e) { erros.push(nome + ' (' + e.message + ')'); }
   }
-  alert('Logins criados:\n' + feitos.join('\n') + (erros.length ? '\n\nNão criados:\n' + erros.join('\n') : ''));
   renderUsuarios();
+  if (feitos.length) mostrarAcessos(feitos, erros); else alert('Nenhum login criado.\n' + erros.join('\n'));
 }
 
 
 // ============================================================
 // ATUALIZAÇÃO AUTOMÁTICA (dados e versão do app)
 // ============================================================
-const APP_VERSAO = '2026-11-04a';
+const APP_VERSAO = '2026-11-04b';
 function telaAtiva() { const t = document.querySelector('.screen.active'); return t ? t.id.replace('screen-', '') : ''; }
 function modalAberto() {
   const v = document.getElementById('viewer');
@@ -3311,10 +3355,10 @@ async function admEntrar() {
   try {
     const d = await api('verificar_admin');
     if (!d.ok) throw new Error('Código de administrador incorreto.');
-    renderAdmBox(); renderUsuarios();
+    renderAdmBox(); atualizarMenu();
   } catch (e) { localStorage.removeItem('mov_admin_code'); document.getElementById('adm-status2').textContent = '⚠️ ' + e.message; }
 }
-function admSair() { localStorage.removeItem('mov_admin_code'); renderAdmBox(); renderUsuarios(); }
+function admSair() { localStorage.removeItem('mov_admin_code'); renderAdmBox(); atualizarMenu(); }
 // ---------- importação (admin) ----------
 function esLerEscala(wb) {
   const nome = wb.SheetNames.find(n => esNorm(n) === 'escala') || wb.SheetNames.find(n => esNorm(n).includes('escala'));
