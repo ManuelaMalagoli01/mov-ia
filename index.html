@@ -535,6 +535,8 @@ select{width:100%;}
         </div>
         <div id="es-dia" style="margin-top:16px"></div>
       </div>
+      <div id="nova-versao" onclick="location.reload()" style="display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:250;background:#1A1A1A;color:#fff;padding:10px 18px;border-radius:24px;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25)">Nova versão do app disponível. Toque para atualizar.</div>
+      <div id="login-bg" class="es-modal-bg" style="display:none;z-index:300;background:rgba(20,20,20,.75)"><div class="es-modal" id="login-box" style="max-width:400px"></div></div>
       <div id="es-modal" class="es-modal-bg" style="display:none" onclick="if(event.target===this)esFechar()"><div class="es-modal" id="es-modal-box"></div></div>
 
       <!-- PLANO PREVENTIVA -->
@@ -591,6 +593,7 @@ select{width:100%;}
         </div>
         <div id="adm-painel" style="display:none">
           <div class="card" style="margin-bottom:14px" id="adm-box"></div>
+          <div class="card" style="margin-bottom:14px;display:none" id="adm-usuarios"></div>
           <div class="alert alert-warn" style="margin-bottom:14px;display:flex"><span id="adm-quem"></span></div>
           <div class="adm-grid">
             <div class="card">
@@ -1024,8 +1027,9 @@ select{width:100%;}
 
       <!-- CONFIG -->
       <div class="screen" id="screen-config">
+        <div class="card" style="margin-bottom:16px;" id="conta-box"></div>
         <div class="card" style="margin-bottom:16px;">
-          <div class="card-title">🔑 Código de acesso MOV</div>
+          <div class="card-title">🔑 Código de acesso MOV (provisório)</div>
           <p class="card-sub" style="margin-top:4px;margin-bottom:12px;">Código fornecido pela coordenação de manutenção. Necessário para usar a IA.</p>
           <div class="api-row">
             <input type="password" id="api-key-input" placeholder="Código de acesso">
@@ -1064,6 +1068,7 @@ select{width:100%;}
       <button class="btn btn-ghost btn-sm" onclick="viewerZoom(0.8)">−</button>
       <button class="btn btn-ghost btn-sm" onclick="viewerZoom(1.25)">+</button>
       <a class="btn btn-ghost btn-sm" id="viewer-link" target="_blank" rel="noopener">Abrir PDF</a>
+      <a class="btn btn-ghost btn-sm" id="viewer-baixar" rel="noopener">⬇ Baixar</a>
     </div>
   </div>
   <div class="viewer-area" id="viewer-area"><canvas id="viewer-canvas"></canvas></div>
@@ -1143,7 +1148,7 @@ function getHistorico() {
 }
 function saveHistorico(h) { localStorage.setItem('mov_historico', JSON.stringify(h)); }
 
-function getApiKey() { return localStorage.getItem('mov_access_code') || ''; }
+function getApiKey() { return localStorage.getItem('mov_access_code') || (localStorage.getItem('mov_token') ? 'login' : ''); }
 function getConfig() {
   const c = localStorage.getItem('mov_config');
   return c ? JSON.parse(c) : { nome: '', empresa: 'Grupo MOV' };
@@ -1168,7 +1173,7 @@ function showScreen(name) {
   if (name === 'exportar') loadExportStats();
   if (name === 'catalogos') renderCatalogos();
   if (name === 'planilhas' && !arguments[1]) renderPlanilhas();
-  if (name === 'admin') { renderAdmin(); renderAdmBox(); }
+  if (name === 'admin') { renderAdmin(); renderAdmBox(); renderUsuarios(); }
   if (name === 'plano') renderPlano();
   if (name === 'escala') renderEscala();
   if (name === 'pecas') setTimeout(() => { if (window.innerWidth > 768) document.getElementById('pc-q').focus(); }, 50);
@@ -1277,7 +1282,7 @@ SINTOMA: ${sintoma}${pecaInf ? '\nPEÇA/CÓDIGO INFORMADO: ' + pecaInf : ''}${ex
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-mov-code': apiKey },
+      headers: { 'Content-Type': 'application/json', 'x-mov-code': apiKey, 'x-mov-token': localStorage.getItem('mov_token') || '' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 1500,
@@ -1660,7 +1665,7 @@ async function handleFiles(files) {
 
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-mov-code': apiKey },
+        headers: { 'Content-Type': 'application/json', 'x-mov-code': apiKey, 'x-mov-token': localStorage.getItem('mov_token') || '' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
           max_tokens: 1500,
@@ -1785,7 +1790,7 @@ Forneça: pontos de atenção, pendências críticas, próxima preventiva recome
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-mov-code': apiKey },
+      headers: { 'Content-Type': 'application/json', 'x-mov-code': apiKey, 'x-mov-token': localStorage.getItem('mov_token') || '' },
       body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
     });
     const data = await res.json();
@@ -1826,8 +1831,9 @@ function loadConfig() {
   const c = getConfig();
   document.getElementById('conf-nome').value = c.nome || '';
   document.getElementById('conf-empresa').value = c.empresa || 'Grupo MOV';
-  const key = getApiKey();
+  const key = localStorage.getItem('mov_access_code') || '';
   if (key) document.getElementById('api-key-input').value = key;
+  mostrarConta();
 }
 function exportarBase() {
   const base = getBase();
@@ -2087,6 +2093,7 @@ function updateBadges() {
 // ============================================================
 window.addEventListener('DOMContentLoaded', () => {
   updateBadges();
+  setTimeout(() => { if (typeof iniciarLogin === 'function') iniciarLogin(); }, 0);
   if (!getApiKey()) {
     document.getElementById('api-warn-diag').style.display = 'flex';
     document.getElementById('status-dot').style.background = 'var(--yellow)';
@@ -2117,14 +2124,18 @@ function realce(texto, termos) {
 }
 
 async function api(acao, params, corpo) {
-  const h = { 'x-mov-code': getApiKey(), 'x-mov-admin': getAdminCode(), 'x-mov-user': encodeURIComponent((getConfig().nome || '').trim()) };
+  const h = { 'x-mov-code': getApiKey(), 'x-mov-admin': getAdminCode(), 'x-mov-token': localStorage.getItem('mov_token') || '', 'x-mov-user': encodeURIComponent((getConfig().nome || '').trim()) };
   let url = '/api/dados?acao=' + encodeURIComponent(acao);
   if (params) Object.keys(params).forEach(k => url += '&' + k + '=' + encodeURIComponent(params[k]));
   const opt = { headers: h };
   if (corpo) { opt.method = 'POST'; h['Content-Type'] = 'application/json'; opt.body = JSON.stringify(Object.assign({ acao }, corpo)); }
   const r = await fetch(url, opt);
   let d; try { d = await r.json(); } catch { d = { erro: 'Resposta inválida do servidor (' + r.status + ')' }; }
-  if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+  if (!r.ok) {
+    if (r.status === 401 && d.sessao) { localStorage.removeItem('mov_token'); localStorage.removeItem('mov_usuario'); if (typeof abrirLogin === 'function') abrirLogin(); }
+    if (r.status === 403 && d.trocar && typeof abrirLogin === 'function') abrirLogin('trocar');
+    throw new Error(d.erro || ('Erro ' + r.status));
+  }
   return d;
 }
 
@@ -2194,7 +2205,8 @@ function filtrarCatalogos() {
   el.innerHTML = Object.keys(grupos).sort().map(m => `<div class="res-grupo"><div class="res-titulo">${escHtml(m)} <span>${grupos[m].length}</span></div>` +
     grupos[m].map(c => `<div class="res-item" onclick="abrirCatalogo('${c.id}',1)">
       <div class="res-top"><strong>${escHtml(c.titulo)}</strong><span class="pill">${c.paginas || '?'} pág.</span></div>
-      <div class="res-meta">${escHtml(c.modelo || '')}${c.sem_texto ? ' · <span style="color:#b45309">PDF escaneado: sem busca por texto</span>' : ''}</div></div>`).join('') + '</div>').join('');
+      <div class="res-meta">${escHtml(c.modelo || '')}${c.sem_texto ? ' · <span style="color:#b45309">PDF escaneado: sem busca por texto</span>' : ''}</div>
+      <div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirCatalogo('${c.id}',1)">Visualizar</button><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();baixarCatalogo('${c.id}',this)">⬇ Baixar PDF</button></div></div>`).join('') + '</div>').join('');
 }
 
 // ---------- VISUALIZADOR PDF ----------
@@ -2219,6 +2231,7 @@ async function abrirCatalogo(id, pagina) {
     document.getElementById('viewer-titulo').textContent = d.titulo;
     VIEW.url = d.url;
     document.getElementById('viewer-link').href = d.url + '#page=' + (pagina || 1);
+    document.getElementById('viewer-baixar').href = d.url + (d.url.includes('?') ? '&' : '?') + 'download=' + encodeURIComponent((d.titulo || 'catalogo').replace(/[\\/:*?"<>|]+/g, '_') + '.pdf');
     VIEW.doc = await lib.getDocument({ url: d.url, disableAutoFetch: true }).promise;
     VIEW.pag = Math.min(Math.max(pagina || 1, 1), VIEW.doc.numPages);
     VIEW.zoom = 1;
@@ -2244,6 +2257,16 @@ async function desenharPagina() {
 function viewerPag(delta) { if (!VIEW.doc) return; const n = VIEW.pag + delta; if (n < 1 || n > VIEW.doc.numPages) return; VIEW.pag = n; desenharPagina(); }
 function viewerIr() { const n = parseInt(prompt('Ir para a página:', VIEW.pag), 10); if (n && VIEW.doc && n >= 1 && n <= VIEW.doc.numPages) { VIEW.pag = n; desenharPagina(); } }
 function viewerZoom(f) { VIEW.zoom = Math.min(4, Math.max(0.5, VIEW.zoom * f)); desenharPagina(); }
+async function baixarCatalogo(id, b) {
+  if (b) b.disabled = true;
+  try {
+    const d = await api('abrir_catalogo', { id });
+    const a = document.createElement('a');
+    a.href = d.url + (d.url.includes('?') ? '&' : '?') + 'download=' + encodeURIComponent((d.titulo || 'catalogo').replace(/[\\/:*?"<>|]+/g, '_') + '.pdf');
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { alert(e.message); }
+  if (b) b.disabled = false;
+}
 function fecharViewer() { document.getElementById('viewer').classList.remove('show'); if (VIEW.doc) { VIEW.doc.destroy(); VIEW.doc = null; } }
 
 // ---------- PLANILHAS ----------
@@ -2261,7 +2284,8 @@ async function renderPlanilhas() {
   el.innerHTML = Object.keys(grupos).sort().map(t => `<div class="res-grupo"><div class="res-titulo">${escHtml(t)} <span>${grupos[t].length}</span></div>` +
     grupos[t].map(p => `<div class="res-item" onclick="abrirPlanilha('${p.id}','')">
       <div class="res-top"><strong>${escHtml(p.titulo)}</strong><span class="pill">${p.linhas} linhas</span></div>
-      <div class="res-meta">Atualizada em ${new Date(p.criado_em).toLocaleDateString('pt-BR')}</div></div>`).join('') + '</div>').join('');
+      <div class="res-meta">Atualizada em ${new Date(p.criado_em).toLocaleDateString('pt-BR')}</div>
+      <div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirPlanilha('${p.id}','')">Visualizar</button><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();baixarPlanilha('${p.id}',this)">⬇ Baixar Excel</button></div></div>`).join('') + '</div>').join('');
 }
 async function abrirPlanilha(id, filtro) {
   if (!document.getElementById('screen-planilhas').classList.contains('active')) showScreen('planilhas', true);
@@ -2270,7 +2294,7 @@ async function abrirPlanilha(id, filtro) {
   PLAN_ATUAL = { id, colunas: p.colunas || [], linhas: [], offset: 0, fim: false, titulo: p.titulo || 'Planilha' };
   document.getElementById('plan-lista').style.display = 'none';
   document.getElementById('plan-tabela-box').style.display = '';
-  document.getElementById('plan-titulo').textContent = PLAN_ATUAL.titulo;
+  document.getElementById('plan-titulo').innerHTML = escHtml(PLAN_ATUAL.titulo) + ` <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="baixarPlanilha('${id}',this)">⬇ Baixar Excel</button>`;
   document.getElementById('plan-filtro').value = filtro || '';
   document.getElementById('plan-tabela').innerHTML = '<div class="vazio"><div class="spinner spinner-dark"></div> Carregando…</div>';
   await carregarMaisLinhas();
@@ -2300,6 +2324,20 @@ function filtrarPlanilha() {
   document.getElementById('plan-tabela').innerHTML = h;
 }
 function voltarPlanilhas() { renderPlanilhas(); }
+async function baixarPlanilha(id, b) {
+  if (b) { b.disabled = true; b.dataset.t = b.textContent; b.textContent = 'Preparando…'; }
+  try {
+    await carregarDados();
+    const p = DADOS.planilhas.find(x => x.id === id) || {};
+    let linhas = [], off = 0;
+    while (true) { const d = await api('linhas_planilha', { id, offset: off }); linhas = linhas.concat(d.linhas.map(l => l.dados)); off += d.linhas.length; if (d.linhas.length < 500) break; }
+    const cols = (p.colunas && p.colunas.length) ? p.colunas : (linhas[0] ? Object.keys(linhas[0]) : []);
+    const ws = XLSX.utils.json_to_sheet(linhas.map(r => { const o = {}; cols.forEach(c => o[c] = r[c] == null ? '' : r[c]); return o; }), { header: cols });
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Dados');
+    XLSX.writeFile(wb, (p.titulo || 'planilha').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80) + '.xlsx');
+  } catch (e) { alert(e.message); }
+  if (b) { b.disabled = false; b.textContent = b.dataset.t; }
+}
 
 // ---------- ADMIN ----------
 async function entrarAdmin() {
@@ -2798,7 +2836,7 @@ function esIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padS
 function esBr(iso) { if (!iso) return ''; const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${d}/${m}/${y}`; }
 function esHojeIso() { return esIso(new Date()); }
 function esNorm(t) { return String(t || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
-function esEhAdmin() { return !!getAdminCode(); }
+function esEhAdmin() { return !!getAdminCode() || (typeof ehCoordenacao === 'function' && ehCoordenacao()); }
 // situação visual: "Aguardando baixa" = programada com data já passada
 function esSit(it) {
   if (it.status === 'Programada' && it.data < esHojeIso()) return 'atr';
@@ -2841,8 +2879,10 @@ function esMontarTecnicos() {
   const lista = [...nomes].sort((a, b) => a.localeCompare(b));
   if (ES.tec === null) {
     const salvo = localStorage.getItem('mov_es_tec');
+    const uLog = getUsuario();
+    if (uLog && uLog.perfil === 'tecnico') { ES.tec = uLog.nome; }
     const meu = esNorm(getConfig().nome);
-    ES.tec = salvo !== null ? salvo : (lista.find(n => meu && (esNorm(n) === meu || esNorm(n).startsWith(meu) || meu.startsWith(esNorm(n)))) || '');
+    if (ES.tec === null) ES.tec = salvo !== null ? salvo : (lista.find(n => meu && (esNorm(n) === meu || esNorm(n).startsWith(meu) || meu.startsWith(esNorm(n)))) || '');
   }
   if (ES.tec && !lista.includes(ES.tec)) lista.unshift(ES.tec);
   sel.innerHTML = '<option value="">Todos os técnicos</option>' + lista.map(n => `<option ${n === ES.tec ? 'selected' : ''}>${escHtml(n)}</option>`).join('');
@@ -3065,10 +3105,199 @@ async function esExportar(b) {
 }
 
 
+// ============================================================
+// LOGIN INDIVIDUAL
+// ============================================================
+function getUsuario() { try { return JSON.parse(localStorage.getItem('mov_usuario') || 'null'); } catch (e) { return null; } }
+function getToken() { return localStorage.getItem('mov_token') || ''; }
+function ehCoordenacao() { const u = getUsuario(); return !!(u && u.perfil === 'coordenacao'); }
+function guardarSessao(token, usuario) {
+  if (token) localStorage.setItem('mov_token', token);
+  localStorage.setItem('mov_usuario', JSON.stringify(usuario));
+  const c = getConfig(); c.nome = usuario.nome; localStorage.setItem('mov_config', JSON.stringify(c));
+}
+function sairLogin() {
+  localStorage.removeItem('mov_token'); localStorage.removeItem('mov_usuario');
+  ES.tec = null; ES_CAD = null;
+  abrirLogin();
+}
+function abrirLogin(modo) {
+  const bg = document.getElementById('login-bg');
+  const temCodigo = !!localStorage.getItem('mov_access_code');
+  let h;
+  if (modo === 'trocar') {
+    const u = getUsuario() || {};
+    h = `<div class="card-title" style="font-size:18px">Troque sua senha</div>
+      <div class="card-sub" style="margin:4px 0 14px">${escHtml(u.nome || '')}, no primeiro acesso a senha provisória precisa ser trocada por uma só sua.</div>
+      <label>Senha provisória</label><input type="password" id="lg-atual" autocomplete="current-password">
+      <label style="margin-top:10px;display:block">Nova senha (mínimo 6 caracteres)</label><input type="password" id="lg-nova" autocomplete="new-password">
+      <label style="margin-top:10px;display:block">Repita a nova senha</label><input type="password" id="lg-nova2" autocomplete="new-password" onkeydown="if(event.key==='Enter')trocarSenha(this)">
+      <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="trocarSenha(this)">Salvar nova senha</button>
+      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="sairLogin()">Sair</button>`;
+  } else {
+    h = `<div style="text-align:center;margin-bottom:14px"><div class="card-title" style="font-size:18px">Entrar no MOV IA</div><div class="card-sub">Use o usuário e a senha que a coordenação passou.</div></div>
+      <label>Usuário</label><input type="text" id="lg-login" autocapitalize="none" autocomplete="username" placeholder="Ex: dilson.santos">
+      <label style="margin-top:10px;display:block">Senha</label><input type="password" id="lg-senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')fazerLogin(this)">
+      <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="fazerLogin(this)">Entrar</button>
+      ${temCodigo ? '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="fecharLogin()">Continuar com o código de acesso (provisório)</button>'
+        : '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="fecharLogin();showScreen(\'config\')">Ainda não tenho login: usar código de acesso</button>'}`;
+  }
+  document.getElementById('login-box').innerHTML = h + '<div id="lg-msg" style="margin-top:10px;font-size:12.5px;color:#b91c1c;text-align:center"></div>';
+  bg.style.display = 'flex';
+  setTimeout(() => { const f = document.getElementById(modo === 'trocar' ? 'lg-atual' : 'lg-login'); if (f) f.focus(); }, 50);
+}
+function fecharLogin() { document.getElementById('login-bg').style.display = 'none'; }
+async function fazerLogin(b) {
+  const login = document.getElementById('lg-login').value.trim(), senha = document.getElementById('lg-senha').value;
+  const msg = document.getElementById('lg-msg');
+  if (!login || !senha) { msg.textContent = 'Informe usuário e senha.'; return; }
+  b.disabled = true;
+  try {
+    const r = await fetch('/api/dados?acao=login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'login', login, senha }) });
+    const d = await r.json().catch(() => ({ erro: 'Resposta inválida do servidor.' }));
+    if (!r.ok) throw new Error(d.erro || 'Erro ' + r.status);
+    guardarSessao(d.token, d.usuario);
+    ES.tec = null;
+    if (d.usuario.trocar_senha) abrirLogin('trocar');
+    else { fecharLogin(); mostrarConta(); showScreen(document.querySelector('.screen.active') ? document.querySelector('.screen.active').id.replace('screen-', '') : 'busca'); }
+  } catch (e) { msg.textContent = '⚠️ ' + e.message; }
+  b.disabled = false;
+}
+async function trocarSenha(b) {
+  const atual = document.getElementById('lg-atual').value, nova = document.getElementById('lg-nova').value, nova2 = document.getElementById('lg-nova2').value;
+  const msg = document.getElementById('lg-msg');
+  if (nova !== nova2) { msg.textContent = 'As duas senhas novas não são iguais.'; return; }
+  b.disabled = true;
+  try {
+    await api('trocar_senha', null, { atual, nova });
+    const u = getUsuario(); u.trocar_senha = false; guardarSessao(null, u);
+    fecharLogin(); mostrarConta(); alert('Senha trocada. Pronto para usar.');
+  } catch (e) { msg.textContent = '⚠️ ' + e.message; }
+  b.disabled = false;
+}
+function mostrarConta() {
+  const el = document.getElementById('conta-box'); if (!el) return;
+  const u = getUsuario();
+  el.innerHTML = u ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><div class="card-title">👤 ${escHtml(u.nome)}</div><div class="card-sub">Usuário ${escHtml(u.login)} · ${u.perfil === 'coordenacao' ? 'Coordenação' : 'Técnico'}</div></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-ghost btn-sm" onclick="abrirLogin('trocar')">Trocar senha</button><button class="btn btn-ghost btn-sm" onclick="sairLogin()">Sair</button></div></div>`
+    : `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><div class="card-title">👤 Sem login</div><div class="card-sub">Entre com seu usuário e senha.</div></div><button class="btn btn-primary btn-sm" onclick="abrirLogin()">Entrar</button></div>`;
+  const nm = document.getElementById('conf-nome'); if (nm && u) { nm.value = u.nome; nm.readOnly = true; }
+}
+async function iniciarLogin() {
+  mostrarConta();
+  if (getToken()) {
+    try {
+      const d = await api('sessao');
+      if (d.usuario) { guardarSessao(null, d.usuario); mostrarConta(); if (d.usuario.trocar_senha) abrirLogin('trocar'); }
+    } catch (e) { /* api() já abre o login quando a sessão expira */ }
+  } else if (!localStorage.getItem('mov_access_code')) abrirLogin();
+}
+
+// ---------- usuários (coordenação) ----------
+let USR = [];
+function sugerirLogin(nome) { const p = esNorm(nome).replace(/[^a-z ]/g, '').split(/\s+/).filter(Boolean); return p.length > 1 ? p[0] + '.' + p[p.length - 1] : (p[0] || ''); }
+async function renderUsuarios() {
+  const el = document.getElementById('adm-usuarios'); if (!el) return;
+  if (!esEhAdmin()) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.innerHTML = '<div class="card-title">👥 Usuários</div><div class="vazio-sm">Carregando…</div>';
+  try {
+    USR = (await api('usuarios')).usuarios || [];
+    let faltam = [];
+    try { const c = await api('escala_cadastros'); const ja = new Set(USR.map(u => esNorm(u.nome))); faltam = c.tecnicos.filter(n => !ja.has(esNorm(n))); } catch (e) {}
+    const lin = USR.map(u => `<div class="adm-linha"><div><strong>${escHtml(u.nome)}</strong><span>${escHtml(u.login)} · ${u.perfil === 'coordenacao' ? 'Coordenação' : 'Técnico'}${u.ativo ? '' : ' · DESATIVADO'}${u.trocar_senha ? ' · aguardando 1º acesso' : ''}${u.ultimo_acesso ? ' · último acesso ' + new Date(u.ultimo_acesso).toLocaleDateString('pt-BR') : ''}</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="usrForm('${u.id}')">Editar / nova senha</button><button class="btn ${u.ativo ? 'btn-danger' : 'btn-ghost'} btn-sm" onclick="usrAtivo('${u.id}',${!u.ativo},this)">${u.ativo ? 'Desativar' : 'Reativar'}</button></div></div>`).join('');
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div><div class="card-title">👥 Usuários</div><div class="card-sub">Cada pessoa entra com o próprio login. O nome precisa ser igual ao da escala.</div></div><button class="btn btn-primary btn-sm" onclick="usrForm()">+ Novo usuário</button></div>
+      ${faltam.length ? `<div class="alert alert-warn" style="margin-top:12px;display:block"><div><strong>${faltam.length} técnico(s) da escala sem login:</strong> ${faltam.map(escHtml).join(', ')}</div><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick='usrCriarEscala(${JSON.stringify(faltam).replace(/'/g, "&#39;")})'>Criar logins para eles</button></div>` : ''}
+      <div style="margin-top:10px">${lin || '<div class="vazio-sm">Nenhum usuário ainda.</div>'}</div>`;
+  } catch (e) { el.innerHTML = '<div class="card-title">👥 Usuários</div><div class="vazio-sm">⚠️ ' + escHtml(e.message) + '</div>'; }
+}
+function usrForm(id) {
+  const u = id ? USR.find(x => x.id === id) : { perfil: 'tecnico' };
+  document.getElementById('es-modal-box').innerHTML = `<div class="card-title" style="font-size:16px">${id ? 'Editar usuário' : 'Novo usuário'}</div>
+    <input type="hidden" id="us-id" value="${id || ''}">
+    <div class="diag-grid" style="margin:12px 0 0">
+      <div style="grid-column:1/-1"><label>Nome (igual ao da escala)</label><input type="text" id="us-nome" value="${escHtml(u.nome || '')}" onchange="if(!document.getElementById('us-login').value)document.getElementById('us-login').value=sugerirLogin(this.value)"></div>
+      <div><label>Usuário (login)</label><input type="text" id="us-login" autocapitalize="none" value="${escHtml(u.login || '')}"></div>
+      <div><label>Perfil</label><select id="us-perfil"><option value="tecnico" ${u.perfil === 'tecnico' ? 'selected' : ''}>Técnico</option><option value="coordenacao" ${u.perfil === 'coordenacao' ? 'selected' : ''}>Coordenação</option></select></div>
+      <div style="grid-column:1/-1"><label>${id ? 'Nova senha provisória (deixe vazio para manter)' : 'Senha provisória'}</label><input type="text" id="us-senha" autocomplete="off"><div class="card-sub" style="margin-top:4px">Mínimo 6 caracteres. A pessoa troca no primeiro acesso.</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px"><button class="btn btn-primary" style="flex:1" onclick="usrSalvar(this)">Salvar</button><button class="btn btn-ghost" onclick="esFechar()">Cancelar</button></div>
+    <div id="us-msg" style="margin-top:8px;font-size:12.5px;color:#b91c1c"></div>`;
+  document.getElementById('es-modal').style.display = 'flex';
+}
+async function usrSalvar(b) {
+  const g = i => document.getElementById(i).value.trim();
+  b.disabled = true;
+  try { await api('salvar_usuario', null, { id: g('us-id'), nome: g('us-nome'), login: g('us-login'), perfil: g('us-perfil'), senha: g('us-senha') }); esFechar(); renderUsuarios(); }
+  catch (e) { document.getElementById('us-msg').textContent = '⚠️ ' + e.message; }
+  b.disabled = false;
+}
+async function usrAtivo(id, ativo, b) {
+  if (!ativo && !confirm('Desativar esse usuário? Ele não consegue mais entrar.')) return;
+  b.disabled = true;
+  try { await api('status_usuario', null, { id, ativo }); renderUsuarios(); } catch (e) { alert(e.message); b.disabled = false; }
+}
+async function usrCriarEscala(nomes) {
+  const senha = prompt(`Senha provisória para os ${nomes.length} técnicos (mínimo 6 caracteres). Cada um troca no primeiro acesso:`);
+  if (!senha) return;
+  if (senha.length < 6) { alert('A senha provisória precisa ter pelo menos 6 caracteres.'); return; }
+  const usados = new Set(USR.map(u => u.login)); const feitos = [], erros = [];
+  for (const nome of nomes) {
+    let login = sugerirLogin(nome), n = 2; while (usados.has(login)) login = sugerirLogin(nome) + n++;
+    usados.add(login);
+    try { await api('salvar_usuario', null, { nome, login, perfil: 'tecnico', senha }); feitos.push(nome + ': ' + login); }
+    catch (e) { erros.push(nome + ' (' + e.message + ')'); }
+  }
+  alert('Logins criados:\n' + feitos.join('\n') + (erros.length ? '\n\nNão criados:\n' + erros.join('\n') : ''));
+  renderUsuarios();
+}
+
+
+// ============================================================
+// ATUALIZAÇÃO AUTOMÁTICA (dados e versão do app)
+// ============================================================
+const APP_VERSAO = '2026-11-04a';
+function telaAtiva() { const t = document.querySelector('.screen.active'); return t ? t.id.replace('screen-', '') : ''; }
+function modalAberto() {
+  const v = document.getElementById('viewer');
+  return ['es-modal', 'login-bg'].some(i => { const e = document.getElementById(i); return e && e.style.display === 'flex'; }) || (v && v.classList.contains('show'));
+}
+let ATU_ULT = 0;
+async function atualizarDados(forcar) {
+  if (document.hidden || modalAberto()) return;
+  if (!forcar && Date.now() - ATU_ULT < 25000) return;
+  ATU_ULT = Date.now();
+  const t = telaAtiva();
+  try {
+    if (t === 'escala' && ES.ano) await esCarregar();
+    else if (t === 'catalogos') await renderCatalogos();
+    else if (t === 'planilhas' && document.getElementById('plan-tabela-box').style.display === 'none') await renderPlanilhas();
+    else { if (typeof carregarDados === 'function') carregarDados(true); if (typeof carregarPlanos === 'function') carregarPlanos(true); }
+  } catch (e) {}
+}
+async function checarVersao() {
+  try {
+    const html = await (await fetch('/?v=' + Date.now(), { cache: 'no-store' })).text();
+    const m = html.match(/APP_VERSAO = '([^']+)'/);
+    if (m && m[1] !== APP_VERSAO) {
+      if (!modalAberto() && telaAtiva() !== 'admin') { location.reload(); return; }
+      const bar = document.getElementById('nova-versao');
+      if (bar) bar.style.display = 'block';
+    }
+  } catch (e) {}
+}
+setInterval(() => atualizarDados(false), 60000);
+setInterval(checarVersao, 5 * 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { atualizarDados(true); checarVersao(); } });
+window.addEventListener('focus', () => { atualizarDados(false); });
+
 // ---------- código de administrador (coordenação) ----------
 function renderAdmBox() {
   const el = document.getElementById('adm-box'); if (!el) return;
-  if (getAdminCode()) {
+  if (ehCoordenacao()) {
+    el.innerHTML = `<div class="card-title">✓ Coordenação: ${escHtml(getUsuario().nome)}</div><div class="card-sub">Você pode importar e editar a escala, decidir pendências e gerenciar usuários.</div>`;
+  } else if (getAdminCode()) {
     el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><div class="card-title">✓ Modo coordenação ativo</div><div class="card-sub">Você pode importar e editar a escala e decidir as pendências.</div></div><button class="btn btn-ghost btn-sm" onclick="admSair()">Sair do modo coordenação</button></div>`;
   } else {
     el.innerHTML = `<div class="card-title">Modo coordenação</div><div class="card-sub">Informe o código de administrador para importar e editar a escala. Técnicos não precisam disso.</div>
@@ -3082,10 +3311,10 @@ async function admEntrar() {
   try {
     const d = await api('verificar_admin');
     if (!d.ok) throw new Error('Código de administrador incorreto.');
-    renderAdmBox();
+    renderAdmBox(); renderUsuarios();
   } catch (e) { localStorage.removeItem('mov_admin_code'); document.getElementById('adm-status2').textContent = '⚠️ ' + e.message; }
 }
-function admSair() { localStorage.removeItem('mov_admin_code'); renderAdmBox(); }
+function admSair() { localStorage.removeItem('mov_admin_code'); renderAdmBox(); renderUsuarios(); }
 // ---------- importação (admin) ----------
 function esLerEscala(wb) {
   const nome = wb.SheetNames.find(n => esNorm(n) === 'escala') || wb.SheetNames.find(n => esNorm(n).includes('escala'));
@@ -3127,7 +3356,7 @@ function esLerEscala(wb) {
 }
 async function esImportar() {
   const st = document.getElementById('es-imp-status');
-  if (!getAdminCode()) { st.textContent = '⚠️ Entre com o código de administrador para importar a escala.'; return; }
+  if (!esEhAdmin()) { st.textContent = '⚠️ Entre com um login de coordenação para importar a escala.'; return; }
   if (!(getConfig().nome || '').trim()) { alert('Coloque seu nome em Configurações antes de inserir dados.'); showScreen('config'); return; }
   const arq = document.getElementById('es-imp-arq').files[0];
   if (!arq) { st.textContent = '⚠️ Escolha o arquivo ESCALA.xlsx.'; return; }
