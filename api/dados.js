@@ -1,7 +1,35 @@
 // MOV IA - acesso aos catalogos e planilhas (Supabase).
 // Leitura: exige MOV_ACCESS_CODE. Escrita: exige MOV_ADMIN_CODE.
 // Variaveis no Vercel: SUPABASE_URL, SUPABASE_SERVICE_KEY, MOV_ACCESS_CODE, MOV_ADMIN_CODE.
+import crypto from 'crypto';
 export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
+
+// ---------- login individual ----------
+const segredo = () => process.env.MOV_SESSION_SECRET || process.env.SUPABASE_SERVICE_KEY || '';
+const b64u = buf => Buffer.from(buf).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+function assinar(dados) {
+  const corpo = b64u(JSON.stringify(dados));
+  return corpo + '.' + b64u(crypto.createHmac('sha256', segredo()).update(corpo).digest());
+}
+function lerToken(tok) {
+  const [corpo, sig] = String(tok || '').split('.');
+  if (!corpo || !sig) return null;
+  const esperado = b64u(crypto.createHmac('sha256', segredo()).update(corpo).digest());
+  if (esperado.length !== sig.length || !crypto.timingSafeEqual(Buffer.from(esperado), Buffer.from(sig))) return null;
+  try { const d = JSON.parse(Buffer.from(corpo.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString()); return d.exp > Date.now() ? d : null; } catch (e) { return null; }
+}
+function hashSenha(senha) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return 'scrypt$' + salt + '$' + crypto.scryptSync(String(senha), salt, 32).toString('hex');
+}
+function confereSenha(senha, guardado) {
+  const [tipo, salt, h] = String(guardado || '').split('$');
+  if (tipo !== 'scrypt' || !salt || !h) return false;
+  const calc = crypto.scryptSync(String(senha), salt, 32);
+  const ref = Buffer.from(h, 'hex');
+  return ref.length === calc.length && crypto.timingSafeEqual(ref, calc);
+}
+const normLogin = t => String(t || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9._-]/g, '');
 
 const BUCKET = 'catalogos';
 
@@ -67,19 +95,83 @@ export default async function handler(req, res) {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
     res.status(500).json({ erro: 'Servidor sem configuracao do banco. Avise a coordenacao.' }); return;
   }
+  const b = req.method === 'POST' ? (req.body || {}) : {};
+  const acao = (req.query.acao || b.acao || '').toString();
+
+  // entrar com usuário e senha (não exige código)
+  if (acao === 'login') {
+    try {
+      const login = normLogin(b.login);
+      const u = login ? (await rest(`usuarios?select=id,login,nome,perfil,senha_hash,trocar_senha,ativo&login=eq.${encodeURIComponent(login)}`))[0] : null;
+      if (!u || !u.ativo || !confereSenha(b.senha, u.senha_hash)) { res.status(401).json({ erro: 'Usuário ou senha incorretos.' }); return; }
+      await rest(`usuarios?id=eq.${u.id}`, { method: 'PATCH', body: JSON.stringify({ ultimo_acesso: new Date().toISOString() }) });
+      const token = assinar({ u: u.id, exp: Date.now() + 30 * 24 * 3600 * 1000 });
+      res.json({ token, usuario: { login: u.login, nome: u.nome, perfil: u.perfil, trocar_senha: !!u.trocar_senha } });
+    } catch (e) { res.status(500).json({ erro: e.message }); }
+    return;
+  }
+
+  // quem está chamando: login individual (token) ou, na transição, código de acesso
+  let usuario = null;
+  const tok = req.headers['x-mov-token'] || '';
+  if (tok) {
+    const d = lerToken(tok);
+    if (d) { try { usuario = (await rest(`usuarios?select=id,login,nome,perfil,trocar_senha,ativo&id=eq.${String(d.u).replace(/[^0-9a-f\-]/gi, '')}`))[0] || null; } catch (e) {} }
+    if (!usuario || !usuario.ativo) { res.status(401).json({ erro: 'Sua sessão expirou. Entre de novo com usuário e senha.', sessao: true }); return; }
+  }
   const codigo = req.headers['x-mov-code'] || '';
   const admin = req.headers['x-mov-admin'] || '';
-  const ehAdmin = !!process.env.MOV_ADMIN_CODE && admin === process.env.MOV_ADMIN_CODE;
-  if (!ehAdmin && codigo !== process.env.MOV_ACCESS_CODE) { res.status(401).json({ erro: 'Codigo de acesso invalido.' }); return; }
+  const ehAdmin = (usuario && usuario.perfil === 'coordenacao') || (!!process.env.MOV_ADMIN_CODE && admin === process.env.MOV_ADMIN_CODE);
+  if (!usuario && !ehAdmin && (!process.env.MOV_ACCESS_CODE || codigo !== process.env.MOV_ACCESS_CODE)) { res.status(401).json({ erro: 'Entre com seu usuário e senha.', sessao: true }); return; }
+  if (usuario && usuario.trocar_senha && !['trocar_senha', 'sessao'].includes(acao)) { res.status(403).json({ erro: 'Troque a senha provisória antes de continuar.', trocar: true }); return; }
 
-  const b = req.method === 'POST' ? (req.body || {}) : {};
   let autor = ''; try { autor = decodeURIComponent(req.headers['x-mov-user'] || '').slice(0, 60); } catch (e) {}
-  const acao = (req.query.acao || b.acao || '').toString();
-  const precisaAdmin = ['importar_escala', 'decidir_escala', 'salvar_escala', 'excluir_escala']; // o resto e liberado para quem tem o codigo de acesso
+  if (usuario) autor = usuario.nome;
+  const precisaAdmin = ['importar_escala', 'decidir_escala', 'salvar_escala', 'excluir_escala', 'usuarios', 'salvar_usuario', 'status_usuario']; // o resto e liberado para quem tem o codigo de acesso
   if (precisaAdmin.includes(acao) && !ehAdmin) { res.status(403).json({ erro: 'Somente administrador.' }); return; }
 
   try {
     switch (acao) {
+      case 'sessao':
+        res.json({ usuario: usuario ? { login: usuario.login, nome: usuario.nome, perfil: usuario.perfil, trocar_senha: !!usuario.trocar_senha } : null, admin: ehAdmin }); return;
+
+      case 'trocar_senha': {
+        if (!usuario) throw new Error('Entre com seu usuário primeiro.');
+        const u = (await rest(`usuarios?select=id,senha_hash&id=eq.${usuario.id}`))[0];
+        if (!confereSenha(b.atual, u.senha_hash)) throw new Error('Senha atual incorreta.');
+        const nova = String(b.nova || '');
+        if (nova.length < 6) throw new Error('A nova senha precisa ter pelo menos 6 caracteres.');
+        if (nova === String(b.atual)) throw new Error('A nova senha precisa ser diferente da provisória.');
+        await rest(`usuarios?id=eq.${usuario.id}`, { method: 'PATCH', body: JSON.stringify({ senha_hash: hashSenha(nova), trocar_senha: false }) });
+        res.json({ ok: true }); return;
+      }
+
+      case 'usuarios': {
+        const d = await rest('usuarios?select=id,login,nome,perfil,trocar_senha,ativo,ultimo_acesso,criado_em&order=perfil.asc,nome.asc');
+        res.json({ usuarios: d }); return;
+      }
+      case 'salvar_usuario': {
+        const login = normLogin(b.login), nome = String(b.nome || '').trim().slice(0, 80);
+        const perfil = b.perfil === 'coordenacao' ? 'coordenacao' : 'tecnico';
+        if (login.length < 3) throw new Error('Login com pelo menos 3 letras, sem espaço.');
+        if (!nome) throw new Error('Informe o nome, igual ao da escala.');
+        const senha = String(b.senha || '');
+        const id = String(b.id || '').replace(/[^0-9a-f\-]/gi, '');
+        const row = { login, nome, perfil };
+        if (senha) { if (senha.length < 6) throw new Error('Senha provisória com pelo menos 6 caracteres.'); row.senha_hash = hashSenha(senha); row.trocar_senha = true; }
+        const dup = await rest(`usuarios?select=id&login=eq.${encodeURIComponent(login)}`);
+        if (dup.length && dup[0].id !== id) throw new Error('Já existe um usuário com o login ' + login + '.');
+        if (id) await rest(`usuarios?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(row) });
+        else { if (!senha) throw new Error('Defina a senha provisória.'); row.ativo = true; await rest('usuarios', { method: 'POST', body: JSON.stringify(row) }); }
+        res.json({ ok: true }); return;
+      }
+      case 'status_usuario': {
+        const id = String(b.id || '').replace(/[^0-9a-f\-]/gi, '');
+        if (usuario && usuario.id === id) throw new Error('Você não pode desativar o próprio usuário.');
+        await rest(`usuarios?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ ativo: !!b.ativo }) });
+        res.json({ ok: true }); return;
+      }
+
       case 'verificar_admin':
         res.json({ ok: ehAdmin }); return;
 
@@ -229,7 +321,7 @@ export default async function handler(req, res) {
           if (atual.status === 'Realizada' || atual.status === 'Não realizada') throw new Error('A baixa já foi registrada. Para corrigir, fale com a coordenação.');
           const nz = t => String(t || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
           if (!autor || ![atual.lider, atual.executor].some(n => n && nz(n) === nz(autor)))
-            throw new Error(`Esse atendimento é de ${[atual.lider, atual.executor].filter(Boolean).join(' e ')}. Confira se seu nome em Configurações está igual ao da escala.`);
+            throw new Error(`Esse atendimento é de ${[atual.lider, atual.executor].filter(Boolean).join(' e ')}.` + (usuario ? ' Só eles podem dar baixa.' : ' Confira se seu nome em Configurações está igual ao da escala.'));
         }
         const st = String(b.status || '');
         const row = { atualizado_em: new Date().toISOString(), atualizado_por: autor || null, obs: String(b.obs || '').slice(0, 500) || null };
