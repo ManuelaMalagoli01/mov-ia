@@ -38,6 +38,11 @@ export default async function handler(req, res) {
   try {
     const { system, messages } = req.body || {};
     if (!Array.isArray(messages)) { res.status(400).json({ error: { message: 'Requisicao invalida' } }); return; }
+    const tamanho = JSON.stringify({ system: system || '', messages }).length;
+    if (tamanho > 1500000) {
+      res.status(413).json({ error: { message: 'Consulta grande demais para a IA. Reduza o texto ou avise a coordenação de manutenção.' } });
+      return;
+    }
     const corpo = { model: MODELO, max_tokens: MAX_TOKENS, messages };
     if (system) corpo.system = system;
 
