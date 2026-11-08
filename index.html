@@ -1141,6 +1141,27 @@ const BASE_INICIAL = [
 // ============================================================
 // STORAGE
 // ============================================================
+function cortaTxt(v, n) { const t = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n) + '…' : t; }
+// Seleciona so os casos da base parecidos com a consulta (modelo + palavras do sintoma),
+// para o prompt nao passar do limite da IA quando a base fica grande.
+function selecionarCasos(base, modelo, texto) {
+  const norm = v => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const mods = norm(modelo).split(/[^a-z0-9]+/).filter(w => w.length >= 2);
+  const pals = [...new Set(norm(texto).split(/[^a-z0-9]+/).filter(w => w.length >= 3 && !(typeof STOP !== 'undefined' && STOP.has(w))))];
+  const pontuados = (base || []).map((c, i) => {
+    const m = norm(c.modelo); const t = norm([c.sintoma, c.causa, c.solucao, c.pecas].join(' '));
+    let p = 0;
+    mods.forEach(w => { if (m.includes(w)) p += 3; });
+    pals.forEach(w => { if (t.includes(w)) p += 2; });
+    return { c, p, i };
+  }).filter(x => x.p > 0).sort((a, b) => b.p - a.p || b.i - a.i);
+  const out = []; let tam = 0;
+  for (const x of pontuados) {
+    if (out.length >= 30 || tam > 40000) break;
+    out.push(x.c); tam += JSON.stringify(x.c).length > 1500 ? 1500 : JSON.stringify(x.c).length;
+  }
+  return out;
+}
 function getBase() {
   const b = localStorage.getItem('mov_base');
   return b ? JSON.parse(b) : JSON.parse(JSON.stringify(BASE_INICIAL));
@@ -1256,8 +1277,9 @@ async function diagnosticar() {
   document.getElementById('result-meta').textContent = modelo || 'Empilhadeira' + (pat ? ' · PAT ' + pat : '');
 
   const base = getBase();
-  const baseTexto = base.map((c, i) =>
-    `Caso ${i+1} [${c.tipo.toUpperCase()}] | Modelo: ${c.modelo} | Sintoma: ${c.sintoma} | Causa: ${c.causa} | Solução: ${c.solucao}${c.pecas ? ' | Peças: ' + c.pecas : ''}${c.relatorio ? ' | Relatório: ' + c.relatorio : ''}`
+  const casosSel = selecionarCasos(base, modelo, sintoma + ' ' + pecaInf + ' ' + extra);
+  const baseTexto = casosSel.map((c, i) =>
+    `Caso ${i+1} [${String(c.tipo || '').toUpperCase()}] | Modelo: ${cortaTxt(c.modelo, 60)} | Sintoma: ${cortaTxt(c.sintoma, 300)} | Causa: ${cortaTxt(c.causa, 300)} | Solução: ${cortaTxt(c.solucao, 400)}${c.pecas ? ' | Peças: ' + cortaTxt(c.pecas, 200) : ''}${c.relatorio ? ' | Relatório: ' + cortaTxt(c.relatorio, 40) : ''}`
   ).join('\n');
 
   const catalogoTexto = await contextoCatalogo(modelo, sintoma + (pecaInf ? ' ' + pecaInf : ''), pecaInf);
@@ -1270,7 +1292,7 @@ Sua função é analisar sintomas relatados por técnicos ou clientes e fornecer
 4. ALERTA DE MAU USO — se o problema indicar operação incorreta
 5. CASOS SIMILARES DA BASE — se houver histórico parecido
 
-Base de conhecimento atual (${base.length} casos registrados):
+Casos mais parecidos da base de conhecimento (${casosSel.length} de ${base.length} registrados):
 ${baseTexto}
 
 ${catalogoTexto ? 'Trechos dos catálogos e da lista de peças da MOV relacionados ao caso:\n' + catalogoTexto + '\n\n' : ''}REGRA DE PEÇAS: só informe código de peça que apareça literalmente nos trechos acima, citando a fonte (catálogo e página, ou lista de peças). Quando houver código interno MOV, informe junto. Se não houver código nos trechos, escreva "código: consultar catálogo" e nunca invente número de peça.
